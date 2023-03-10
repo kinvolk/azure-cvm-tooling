@@ -21,6 +21,5 @@ scp target/release/vtpm-snp azureuser@$CONFIDENTIAL_VM
 ## Run
 
 ```
-sudo tpm2_nvread -C o 0x01400001 > vtpm_snp_report.bin
-./vtpm-snp vtpm_snp_report.bin
+sudo ./vtpm-snp-report -i -p
 ```
