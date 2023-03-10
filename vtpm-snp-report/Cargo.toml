@@ -1,0 +1,17 @@
+[package]
+name = "vtpm-snp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = "1"
+clap = { version = "4", features = ["derive"] }
+# TODO: disable vendoring
+openssl = { version = "0.10.45", features = ["vendored"] }
+reqwest = { version = "0.11", features = ["blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sev = { version = "1", features = ["openssl"] }
+tss-esapi = "7.2"
