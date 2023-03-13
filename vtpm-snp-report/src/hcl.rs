@@ -1,9 +1,10 @@
-use jsonwebkey;
 use memoffset::offset_of;
-use sev::firmware::guest::types::AttestationReport;
+use openssl::{self, rsa, sha::sha256};
 use serde::{Deserialize, Serialize};
+use sev::firmware::guest::types::AttestationReport;
 use static_assertions::const_assert;
-
+use std::error;
+use thiserror::Error;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -73,24 +74,75 @@ pub struct VmConfiguration {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReportData {
-    pub keys: Vec<jsonwebkey::JsonWebKey>,
+    pub keys: [jsonwebkey::JsonWebKey; 1],
     #[serde(rename = "vm-configuration")]
     pub vm_configuration: VmConfiguration,
 }
 
+pub struct HclReportWithRuntimeData {
+    pub hcl_report: HclAttestationReport,
+    pub runtime_data: ReportData,
+}
+
+#[derive(Debug, Error)]
+#[error("ReportData field does not match RuntimeData hash")]
+pub struct ReportDataMismatchError;
+
+impl HclReportWithRuntimeData {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, Box<dyn error::Error>> {
+        let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
+        let var_data_offset =
+            offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
+        let var_data = &bytes[var_data_offset..];
+        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+        let runtime_data: ReportData = serde_json::from_slice(var_data)?;
+        Ok(HclReportWithRuntimeData {
+            hcl_report,
+            runtime_data,
+        })
+    }
+
+    pub fn get_attestation_key(
+        &self,
+    ) -> Result<rsa::Rsa<openssl::pkey::Public>, Box<dyn error::Error>> {
+        let key = self.runtime_data.keys[0].key.as_ref();
+        let pubkey = key.to_pem();
+        let pubkey = openssl::pkey::PKey::public_key_from_pem(pubkey.as_bytes())?;
+        let pubkey = pubkey.rsa()?;
+        Ok(pubkey)
+    }
+
+    pub fn verify_report_data(bytes: &[u8]) -> Result<(), Box<dyn error::Error>> {
+        let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
+        let var_data_offset =
+            offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
+        let var_data = &bytes[var_data_offset..];
+        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+        let report_data = &hcl_report.hw_report.report_data[..32];
+        let hash = sha256(var_data);
+        if hash != report_data {
+            return Err(Box::new(ReportDataMismatchError));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn test_report_data_hash() {
+        let bytes = include_bytes!("../test/hcl-report.bin");
+        let res = HclReportWithRuntimeData::verify_report_data(bytes);
+        assert!(res.is_ok());
+    }
+    #[test]
     fn test_hcl_report() {
         let bytes = include_bytes!("../test/hcl-report.bin");
-        let hcl_report : HclAttestationReport = bincode::deserialize(bytes).unwrap();
-        let var_data_offset = offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
-        let var_data = &bytes[var_data_offset..];
-        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
-        let r: ReportData = serde_json::from_slice(var_data).unwrap();
-        let key = r.keys.first().unwrap().key.as_ref();
-        let pubkey = key.to_pem();
-        println!("{:?}", pubkey);
+        let hcl_report = HclReportWithRuntimeData::from_slice(bytes).unwrap();
+        println!("{:?}", hcl_report.runtime_data);
+        let pubkey = hcl_report.get_attestation_key().unwrap();
+        assert!(pubkey.size() == 256);
     }
 }
