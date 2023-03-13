@@ -1,3 +1,5 @@
+use jsonwebkey;
+use memoffset::offset_of;
 use sev::firmware::guest::types::AttestationReport;
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
@@ -54,3 +56,41 @@ pub struct HclAttestationReport {
 }
 
 const_assert!(std::mem::size_of::<HclAttestationHeader>() == 32);
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct VmConfiguration {
+    #[serde(rename = "console-enabled")]
+    pub console_enabled: bool,
+    #[serde(rename = "current-time")]
+    pub current_time: u32,
+    #[serde(rename = "secure-boot")]
+    pub secure_boot: bool,
+    #[serde(rename = "tpm-enabled")]
+    pub tpm_enabled: bool,
+    #[serde(rename = "vmUniqueId")]
+    pub vm_unique_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ReportData {
+    pub keys: Vec<jsonwebkey::JsonWebKey>,
+    #[serde(rename = "vm-configuration")]
+    pub vm_configuration: VmConfiguration,
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hcl_report() {
+        let bytes = include_bytes!("../test/hcl-report.bin");
+        let hcl_report : HclAttestationReport = bincode::deserialize(bytes).unwrap();
+        let var_data_offset = offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
+        let var_data = &bytes[var_data_offset..];
+        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+        let r: ReportData = serde_json::from_slice(var_data).unwrap();
+        let key = r.keys.first().unwrap().key.as_ref();
+        let pubkey = key.to_pem();
+        println!("{:?}", pubkey);
+    }
+}
