@@ -19,5 +19,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sev = { version = "1", features = ["openssl"] }
 static_assertions = "^1.1.0"
-thiserror = "1.0.39"
+thiserror = "1.0.38"
 tss-esapi = "7.2"
