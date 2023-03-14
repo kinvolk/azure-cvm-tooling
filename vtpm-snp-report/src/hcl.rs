@@ -3,6 +3,7 @@ use openssl::{self, rsa, sha::sha256};
 use serde::{Deserialize, Serialize};
 use sev::firmware::guest::types::AttestationReport;
 use static_assertions::const_assert;
+use std::convert::TryFrom;
 use std::error;
 use thiserror::Error;
 
@@ -88,20 +89,29 @@ pub struct HclReportWithRuntimeData {
 #[error("ReportData field does not match RuntimeData hash")]
 pub struct ReportDataMismatchError;
 
-impl HclReportWithRuntimeData {
-    pub fn from_slice(bytes: &[u8]) -> Result<Self, Box<dyn error::Error>> {
-        let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
-        let var_data_offset =
-            offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
-        let var_data = &bytes[var_data_offset..];
-        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+fn buf_to_hcl_data(bytes: &[u8]) -> Result<(HclAttestationReport, &[u8]), Box<dyn error::Error>> {
+    let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
+    let var_data_offset =
+        offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
+    let var_data = &bytes[var_data_offset..];
+    let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+    Ok((hcl_report, var_data))
+}
+
+impl TryFrom<&[u8]> for HclReportWithRuntimeData {
+    type Error = Box<dyn error::Error>;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
         let runtime_data: ReportData = serde_json::from_slice(var_data)?;
         Ok(HclReportWithRuntimeData {
             hcl_report,
             runtime_data,
         })
     }
+}
 
+impl HclReportWithRuntimeData {
     pub fn get_attestation_key(
         &self,
     ) -> Result<rsa::Rsa<openssl::pkey::Public>, Box<dyn error::Error>> {
@@ -113,11 +123,7 @@ impl HclReportWithRuntimeData {
     }
 
     pub fn verify_report_data(bytes: &[u8]) -> Result<(), Box<dyn error::Error>> {
-        let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
-        let var_data_offset =
-            offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
-        let var_data = &bytes[var_data_offset..];
-        let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
+        let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
         let report_data = &hcl_report.hw_report.report_data[..32];
         let hash = sha256(var_data);
         if hash != report_data {
@@ -139,8 +145,8 @@ mod tests {
     }
     #[test]
     fn test_hcl_report() {
-        let bytes = include_bytes!("../test/hcl-report.bin");
-        let hcl_report = HclReportWithRuntimeData::from_slice(bytes).unwrap();
+        let bytes: &[u8] = include_bytes!("../test/hcl-report.bin");
+        let hcl_report: HclReportWithRuntimeData = bytes.try_into().unwrap();
         println!("{:?}", hcl_report.runtime_data);
         let pubkey = hcl_report.get_attestation_key().unwrap();
         assert!(pubkey.size() == 256);
