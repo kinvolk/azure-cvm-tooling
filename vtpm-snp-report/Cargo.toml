@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 bincode = "1"
 clap = { version = "4", features = ["derive"] }
+jsonwebkey = { version = "0.3.5", features = ["pkcs-convert"] }
+memoffset = "0.8.0"
 # TODO: disable vendoring
 openssl = { version = "0.10.45", features = ["vendored"] }
 picky-asn1-der = "0.4.0"
@@ -16,5 +18,6 @@ reqwest = { version = "0.11", features = ["blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sev = { version = "1", features = ["openssl"] }
-thiserror = "1.0.39"
+static_assertions = "^1.1.0"
+thiserror = "1.0.38"
 tss-esapi = "7.2"

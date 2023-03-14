@@ -6,6 +6,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 mod certs;
+mod hcl;
 mod report;
 mod vtpm;
 

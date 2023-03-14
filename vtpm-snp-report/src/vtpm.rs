@@ -1,3 +1,4 @@
+use memoffset::offset_of;
 use sev::firmware::guest::types::AttestationReport;
 use thiserror::Error;
 use tss_esapi::abstraction::nv;
@@ -8,10 +9,12 @@ use tss_esapi::interface_types::session_handles::AuthSession;
 use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
 use tss_esapi::Context;
 
+use crate::hcl;
+
 const SNP_REPORT_SIZE: usize = std::mem::size_of::<AttestationReport>();
 const VTPM_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
-const VTPM_REPORT_OFFSET: usize = 32;
+const VTPM_REPORT_OFFSET: usize = offset_of!(hcl::HclAttestationReport, hw_report);
 
 pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
     use tss_esapi::handles::NvIndexTpmHandle;
