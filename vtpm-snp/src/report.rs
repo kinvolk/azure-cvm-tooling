@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use super::certs::Vcek;
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
 use sev::firmware::guest::types::{AttestationReport, Signature};

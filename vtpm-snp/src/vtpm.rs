@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use memoffset::offset_of;
 use openssl::bn::BigNum;
 use openssl::hash::MessageDigest;
