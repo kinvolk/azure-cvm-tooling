@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use memoffset::offset_of;
 use openssl::bn::BigNum;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Public};
 use openssl::rsa::Rsa;
 use openssl::sign::Verifier;
-use sev::firmware::guest::types::AttestationReport;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tss_esapi::abstraction::nv;
 use tss_esapi::abstraction::public::DecodedKey;
@@ -23,24 +22,24 @@ use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
 use tss_esapi::traits::{Marshall, UnMarshall};
 use tss_esapi::Context;
 
-use crate::hcl;
-
-const SNP_REPORT_SIZE: usize = std::mem::size_of::<AttestationReport>();
-const VTPM_NV_INDEX: u32 = 0x01400001;
+const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
-const VTPM_REPORT_OFFSET: usize = offset_of!(hcl::HclAttestationReport, hw_report);
+
+pub fn has_tpm_device() -> bool {
+    let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
+    Context::new(conf).is_ok()
+}
 
 pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
     use tss_esapi::handles::NvIndexTpmHandle;
-    let nv_index = NvIndexTpmHandle::new(VTPM_NV_INDEX)?;
+    let nv_index = NvIndexTpmHandle::new(VTPM_HCL_REPORT_NV_INDEX)?;
 
     let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
     let mut context = Context::new(conf)?;
     let auth_session = AuthSession::Password;
     context.set_sessions((Some(auth_session), None, None));
 
-    let bytes = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
-    Ok(bytes[VTPM_REPORT_OFFSET..(VTPM_REPORT_OFFSET + SNP_REPORT_SIZE)].to_vec())
+    nv::read_full(&mut context, NvAuth::Owner, nv_index)
 }
 
 #[derive(Error, Debug)]
@@ -86,6 +85,7 @@ pub enum QuoteError {
     WrongSignature,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Quote {
     pub signature: Vec<u8>,
     pub message: Vec<u8>,
