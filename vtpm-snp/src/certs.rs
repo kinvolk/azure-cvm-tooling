@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use openssl::x509::X509;
 use reqwest::blocking::get as http_get;
 use reqwest::blocking::Client as http_client;
