@@ -2,7 +2,8 @@
 // Licensed under the MIT License.
 
 use memoffset::offset_of;
-use openssl::{self, rsa, sha::sha256};
+use openssl::pkey::{PKey, Public};
+use openssl::{self, sha::sha256};
 use serde::{Deserialize, Serialize};
 use sev::firmware::guest::types::AttestationReport;
 use static_assertions::const_assert;
@@ -28,8 +29,12 @@ pub enum IgvmReportType {
     Tvm = 3,
 }
 
+#[allow(dead_code)]
 const HCL_ATTESTATION_SIGNATURE: u32 = 0x414C4348;
+
+#[allow(dead_code)]
 const HCL_ATTESTATION_VERSION: u32 = 0x1;
+
 #[repr(C)]
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct HclAttestationHeader {
@@ -40,7 +45,9 @@ pub struct HclAttestationHeader {
     pub reserved: [u32; 4], //<- this looks wrong
 }
 
+#[allow(dead_code)]
 const IGVM_ATTEST_VERSION_CURRENT: u32 = 0x1;
+
 #[repr(C)]
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct IgvmRequestData {
@@ -83,16 +90,25 @@ pub struct ReportData {
     pub vm_configuration: VmConfiguration,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct HclReportWithRuntimeData {
     pub hcl_report: HclAttestationReport,
     pub runtime_data: ReportData,
+}
+
+impl HclReportWithRuntimeData {
+    pub fn snp_report(&self) -> &AttestationReport {
+        &self.hcl_report.hw_report
+    }
 }
 
 #[derive(Debug, Error)]
 #[error("ReportData field does not match RuntimeData hash")]
 pub struct ReportDataMismatchError;
 
-fn buf_to_hcl_data(bytes: &[u8]) -> Result<(HclAttestationReport, &[u8]), Box<dyn error::Error>> {
+pub fn buf_to_hcl_data(
+    bytes: &[u8],
+) -> Result<(HclAttestationReport, &[u8]), Box<bincode::ErrorKind>> {
     let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
     let var_data_offset =
         offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
@@ -101,8 +117,16 @@ fn buf_to_hcl_data(bytes: &[u8]) -> Result<(HclAttestationReport, &[u8]), Box<dy
     Ok((hcl_report, var_data))
 }
 
+#[derive(Error, Debug)]
+pub enum ParseError {
+    #[error("bincode error")]
+    Bincode(#[from] Box<bincode::ErrorKind>),
+    #[error("json parse error")]
+    Report(#[from] serde_json::Error),
+}
+
 impl TryFrom<&[u8]> for HclReportWithRuntimeData {
-    type Error = Box<dyn error::Error>;
+    type Error = ParseError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
@@ -115,13 +139,10 @@ impl TryFrom<&[u8]> for HclReportWithRuntimeData {
 }
 
 impl HclReportWithRuntimeData {
-    pub fn get_attestation_key(
-        &self,
-    ) -> Result<rsa::Rsa<openssl::pkey::Public>, Box<dyn error::Error>> {
+    pub fn get_attestation_key(&self) -> Result<PKey<Public>, openssl::error::ErrorStack> {
         let key = self.runtime_data.keys[0].key.as_ref();
         let pubkey = key.to_pem();
         let pubkey = openssl::pkey::PKey::public_key_from_pem(pubkey.as_bytes())?;
-        let pubkey = pubkey.rsa()?;
         Ok(pubkey)
     }
 
