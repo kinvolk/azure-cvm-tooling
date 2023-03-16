@@ -706,9 +706,9 @@ checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "openssl"
-version = "0.10.45"
+version = "0.10.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b102428fd03bc5edf97f62620f7298614c45cedf287c271e7ed450bbaf83f2e1"
+checksum = "fd2523381e46256e40930512c7fd25562b9eae4812cb52078f155e87217c9d1e"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -747,9 +747,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.80"
+version = "0.9.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23bbbf7854cd45b83958ebe919f0e8e516793727652e27fda10a8384cfc790b7"
+checksum = "176be2629957c157240f68f61f2d0053ad3a4ecfdd9ebf1e6521d18d9635cf67"
 dependencies = [
  "autocfg",
  "cc",
@@ -793,34 +793,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "picky-asn1"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47530ada7dc2327eba0200cfbdbb8d7f7751856bef43a01c20afa9bd00f54c76"
-dependencies = [
- "oid",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
 name = "picky-asn1-der"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbbd5390ab967396cc7473e6e0848684aec7166e657c6088604e07b54a73dbe"
 dependencies = [
- "picky-asn1 0.3.3",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "picky-asn1-der"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e47267a46f4ea246b772381970b8ed3f15963dd3e15ffc2c3f4ac3bc2d77384b"
-dependencies = [
- "picky-asn1 0.7.1",
+ "picky-asn1",
  "serde",
  "serde_bytes",
 ]
@@ -833,21 +811,8 @@ checksum = "f3033675030de806aba1d5470949701b7c9f1dbf77e3bb17bd12e5f945e560ba"
 dependencies = [
  "base64 0.13.1",
  "oid",
- "picky-asn1 0.3.3",
- "picky-asn1-der 0.2.5",
- "serde",
-]
-
-[[package]]
-name = "picky-asn1-x509"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdb51541f90aa99f2fa7191c8daebc224d500cd5963c6ca3e6cede9645a1b2e1"
-dependencies = [
- "base64 0.13.1",
- "oid",
- "picky-asn1 0.7.1",
- "picky-asn1-der 0.4.0",
+ "picky-asn1",
+ "picky-asn1-der",
  "serde",
 ]
 
@@ -1356,8 +1321,8 @@ dependencies = [
  "num-derive",
  "num-traits",
  "oid",
- "picky-asn1 0.3.3",
- "picky-asn1-x509 0.6.1",
+ "picky-asn1",
+ "picky-asn1-x509",
  "regex",
  "serde",
  "tss-esapi-sys",
@@ -1461,8 +1426,6 @@ dependencies = [
  "jsonwebkey",
  "memoffset",
  "openssl",
- "picky-asn1-der 0.4.0",
- "picky-asn1-x509 0.9.0",
  "reqwest",
  "serde",
  "serde_json",
