@@ -7,51 +7,71 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use vtpm_snp::hcl::HclReportWithRuntimeData;
+use vtpm_snp::{certs, report, vtpm};
 
-mod certs;
-mod hcl;
-mod report;
-mod vtpm;
-
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Raw unmodified report bytes
-    #[arg(short, long)]
-    file_name: Option<PathBuf>,
+    #[command(subcommand)]
+    action: Action,
+}
 
-    /// Print the report to stdout
-    #[arg(short, long)]
-    print_report: bool,
+#[derive(clap::Subcommand)]
+enum Action {
+    Report {
+        /// Raw unmodified report bytes
+        #[arg(short, long)]
+        file: Option<PathBuf>,
 
-    /// Retrieve certificates from IMDS endpoint
-    #[arg(short, long)]
-    imds: bool,
+        /// Print the report to stdout
+        #[arg(short, long)]
+        print: bool,
+
+        /// Retrieve certificates from IMDS endpoint
+        #[arg(short, long)]
+        imds: bool,
+    },
+    Quote {
+        /// A nonce to use for the quote
+        #[arg(short, long)]
+        nonce: String,
+    },
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let bytes = match args.file_name {
-        Some(file_name) => read_file(&file_name)?,
-        None => vtpm::get_report()?,
-    };
-    let report = report::parse(&bytes)?;
+    match args.action {
+        Action::Report { file, imds, print } => {
+            let bytes = match file {
+                Some(file_name) => read_file(&file_name)?,
+                None => vtpm::get_report()?,
+            };
+            let hcl_report: HclReportWithRuntimeData = bytes[..].try_into()?;
+            let snp_report = hcl_report.snp_report();
 
-    let (vcek, cert_chain) = if args.imds {
-        certs::get_from_imds()?
-    } else {
-        let vcek = certs::get_vcek_from_amd(&report)?;
-        let cert_chain = certs::get_chain_from_amd()?;
-        (vcek, cert_chain)
-    };
+            let (vcek, cert_chain) = if imds {
+                certs::get_from_imds()?
+            } else {
+                let vcek = certs::get_vcek_from_amd(snp_report)?;
+                let cert_chain = certs::get_chain_from_amd()?;
+                (vcek, cert_chain)
+            };
 
-    cert_chain.validate()?;
-    vcek.validate(&cert_chain)?;
-    report.validate(&vcek)?;
+            cert_chain.validate()?;
+            vcek.validate(&cert_chain)?;
+            snp_report.validate(&vcek)?;
 
-    if args.print_report {
-        println!("{}", report);
+            if print {
+                println!("{}", snp_report);
+            }
+        }
+        Action::Quote { nonce } => {
+            println!("quote byte size: {}", nonce.as_bytes().len());
+            let quote = vtpm::get_quote(nonce.as_bytes())?;
+            println!("{:02X?}", quote.message);
+        }
     }
 
     Ok(())
