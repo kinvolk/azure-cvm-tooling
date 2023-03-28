@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use az_snp_vtpm::hcl::HclReportWithRuntimeData;
+use az_snp_vtpm::{certs, report, vtpm};
 use clap::Parser;
 use report::Validateable;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use vtpm_snp::hcl::HclReportWithRuntimeData;
-use vtpm_snp::{certs, report, vtpm};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

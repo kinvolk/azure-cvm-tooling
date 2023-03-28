@@ -1,22 +1,25 @@
 [package]
-name = "vtpm-snp"
+name = "az-snp-vtpm"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/kinvolk/azure-cvm-tooling/"
+license = "MIT"
+keywords = ["azure", "tpm", "sev-snp"]
+categories = ["cryptography", "virtualization"]
+description = "vTPM based SEV-SNP attestation for Azure Confidential VMs"
 
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
-name = "vtpm-snp"
+name = "snp-vtpm"
+path = "src/main.rs"
 
 [dependencies]
 bincode = "1"
 clap = { version = "4", features = ["derive"] }
 jsonwebkey = { version = "0.3.5", features = ["pkcs-convert"] }
 memoffset = "0.8.0"
-# TODO: disable vendoring
 openssl = { version = "0.10.45", features = ["vendored"] }
 reqwest = { version = "0.11", features = ["blocking"] }
 serde = { version = "1", features = ["derive"] }

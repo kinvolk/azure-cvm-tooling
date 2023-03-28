@@ -18,6 +18,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "az-snp-vtpm"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "clap",
+ "jsonwebkey",
+ "memoffset",
+ "openssl",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sev",
+ "static_assertions",
+ "thiserror",
+ "tss-esapi",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1415,24 +1433,6 @@ checksum = "dd64fe09d8e880e600c324e7d664760a17f56e9672b7495a86381b49e4f72f46"
 dependencies = [
  "bitflags",
  "libc",
-]
-
-[[package]]
-name = "vtpm-snp"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "clap",
- "jsonwebkey",
- "memoffset",
- "openssl",
- "reqwest",
- "serde",
- "serde_json",
- "sev",
- "static_assertions",
- "thiserror",
- "tss-esapi",
 ]
 
 [[package]]
