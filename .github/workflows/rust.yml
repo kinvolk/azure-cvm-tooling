@@ -34,16 +34,16 @@ jobs:
 
     - name: Build
       run: cargo build --verbose
-      working-directory: vtpm-snp
+      working-directory: az-snp-vtpm
 
     - name: Run tests
       run: cargo test --verbose
-      working-directory: vtpm-snp
+      working-directory: az-snp-vtpm
 
     - name: Format
       run: cargo fmt --all -- --check
-      working-directory: vtpm-snp
+      working-directory: az-snp-vtpm
 
     - name: Lint
       run: cargo clippy --all-targets --all-features -- -D warnings
-      working-directory: vtpm-snp
+      working-directory: az-snp-vtpm

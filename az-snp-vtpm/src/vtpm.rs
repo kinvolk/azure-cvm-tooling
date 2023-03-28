@@ -24,6 +24,17 @@ use tss_esapi::Context;
 
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
+const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 9] = [
+    PcrSlot::Slot0,
+    PcrSlot::Slot1,
+    PcrSlot::Slot2,
+    PcrSlot::Slot3,
+    PcrSlot::Slot4,
+    PcrSlot::Slot5,
+    PcrSlot::Slot6,
+    PcrSlot::Slot7,
+    PcrSlot::Slot14,
+];
 
 pub fn has_tpm_device() -> bool {
     let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
@@ -104,10 +115,7 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     let scheme = SignatureScheme::Null;
     let hash_algo = HashingAlgorithm::Sha256;
     let selection_list = PcrSelectionListBuilder::new()
-        .with_selection(
-            hash_algo,
-            &[PcrSlot::Slot15, PcrSlot::Slot16, PcrSlot::Slot22],
-        )
+        .with_selection(hash_algo, &VTPM_QUOTE_PCR_SLOTS)
         .build()?;
 
     let auth_session = AuthSession::Password;

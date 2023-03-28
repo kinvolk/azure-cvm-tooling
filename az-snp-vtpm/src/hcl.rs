@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use sev::firmware::guest::types::AttestationReport;
 use static_assertions::const_assert;
 use std::convert::TryFrom;
-use std::error;
 use thiserror::Error;
 
 #[repr(C)]
@@ -102,10 +101,6 @@ impl HclReportWithRuntimeData {
     }
 }
 
-#[derive(Debug, Error)]
-#[error("ReportData field does not match RuntimeData hash")]
-pub struct ReportDataMismatchError;
-
 pub fn buf_to_hcl_data(
     bytes: &[u8],
 ) -> Result<(HclAttestationReport, &[u8]), Box<bincode::ErrorKind>> {
@@ -145,16 +140,24 @@ impl HclReportWithRuntimeData {
         let pubkey = openssl::pkey::PKey::public_key_from_pem(pubkey.as_bytes())?;
         Ok(pubkey)
     }
+}
 
-    pub fn verify_report_data(bytes: &[u8]) -> Result<(), Box<dyn error::Error>> {
-        let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
-        let report_data = &hcl_report.hw_report.report_data[..32];
-        let hash = sha256(var_data);
-        if hash != report_data {
-            return Err(Box::new(ReportDataMismatchError));
-        }
-        Ok(())
+#[derive(Error, Debug)]
+pub enum ValidationError {
+    #[error("bincode error")]
+    Bincode(#[from] Box<bincode::ErrorKind>),
+    #[error("ReportData field does not match RuntimeData hash")]
+    ReportDataMismatchError,
+}
+
+pub fn verify_report_data(bytes: &[u8]) -> Result<(), ValidationError> {
+    let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
+    let report_data = &hcl_report.hw_report.report_data[..32];
+    let hash = sha256(var_data);
+    if hash != report_data {
+        return Err(ValidationError::ReportDataMismatchError);
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -164,7 +167,7 @@ mod tests {
     #[test]
     fn test_report_data_hash() {
         let bytes = include_bytes!("../test/hcl-report.bin");
-        let res = HclReportWithRuntimeData::verify_report_data(bytes);
+        let res = verify_report_data(bytes);
         assert!(res.is_ok());
     }
     #[test]
