@@ -13,7 +13,7 @@ pub struct Response {
 #[derive(Error, Debug)]
 pub enum ImdsError {
     #[error("HTTP error")]
-    Http(#[from] ureq::Error),
+    Http(#[from] Box<ureq::Error>),
     #[error("failed to read IMDS response")]
     Io(#[from] std::io::Error),
 }
@@ -21,7 +21,8 @@ pub enum ImdsError {
 pub fn retrieve_certs() -> Result<Response, ImdsError> {
     let response = ureq::get(IMDS_CERT_URL)
         .set("Metadata", "true")
-        .call()?
+        .call()
+        .map_err(Box::new)?
         .into_json()?;
     Ok(response)
 }

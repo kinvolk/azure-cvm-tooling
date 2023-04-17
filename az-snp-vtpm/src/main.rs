@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let response = imds::retrieve_certs()?;
                 Box::new(response)
             } else {
-                let amd_kds = certs::AmdKds::new(&snp_report);
+                let amd_kds = certs::AmdKds::new(snp_report);
                 Box::new(amd_kds)
             };
 

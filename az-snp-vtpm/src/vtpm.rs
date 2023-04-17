@@ -74,9 +74,9 @@ pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
     };
 
     let bytes = rsa_pk.modulus.as_unsigned_bytes_be();
-    let n = BigUint::from_bytes_be(&bytes);
+    let n = BigUint::from_bytes_be(bytes);
     let bytes = rsa_pk.public_exponent.as_unsigned_bytes_be();
-    let e = BigUint::from_bytes_be(&bytes);
+    let e = BigUint::from_bytes_be(bytes);
 
     let pkey = RsaPublicKey::new(n, e)?;
     Ok(pkey)

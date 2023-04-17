@@ -77,7 +77,7 @@ pub struct AmdKds<'a>(&'a AttestationReport);
 #[derive(Error, Debug)]
 pub enum AmdKdsError {
     #[error("HTTP error")]
-    Http(#[from] ureq::Error),
+    Http(#[from] Box<ureq::Error>),
     #[error("io error")]
     Io(#[from] std::io::Error),
 }
@@ -88,7 +88,7 @@ impl<'a> AmdKds<'a> {
     }
 
     fn get(&self, url: &str) -> Result<Vec<u8>, AmdKdsError> {
-        let mut body = ureq::get(url).call()?.into_reader();
+        let mut body = ureq::get(url).call().map_err(Box::new)?.into_reader();
         let mut buffer = Vec::new();
         body.read_to_end(&mut buffer)?;
         Ok(buffer)

@@ -157,7 +157,7 @@ pub fn verify_report_data(bytes: &[u8]) -> Result<(), ValidationError> {
     let report_data = &hcl_report.hw_report.report_data[..32];
 
     let mut hasher = Sha256::new();
-    hasher.update(&var_data);
+    hasher.update(var_data);
     let hash = hasher.finalize();
 
     if hash.as_slice() != report_data {
