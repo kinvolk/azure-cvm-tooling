@@ -1,14 +1,19 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#[cfg(feature = "verifier")]
 use super::certs::Vcek;
+#[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
-use sev::firmware::guest::types::{AttestationReport, Signature};
+use sev::firmware::guest::types::AttestationReport;
+#[cfg(feature = "verifier")]
+use sev::firmware::guest::types::Signature;
 use std::error::Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ValidateError {
+    #[cfg(feature = "verifier")]
     #[error("openssl error")]
     OpenSsl(#[from] openssl::error::ErrorStack),
     #[error("TCB data is not valid")]
@@ -21,10 +26,12 @@ pub enum ValidateError {
     Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
+#[cfg(feature = "verifier")]
 pub trait Validateable {
     fn validate(&self, vcek: &Vcek) -> Result<(), ValidateError>;
 }
 
+#[cfg(feature = "verifier")]
 impl Validateable for AttestationReport {
     fn validate(&self, vcek: &Vcek) -> Result<(), ValidateError> {
         if !is_tcb_data_valid(self) {
@@ -51,10 +58,12 @@ pub fn parse(bytes: &[u8]) -> Result<AttestationReport, Box<dyn Error>> {
     Ok(decoded)
 }
 
+#[cfg(feature = "verifier")]
 fn is_tcb_data_valid(report: &AttestationReport) -> bool {
     report.reported_tcb == report.committed_tcb
 }
 
+#[cfg(feature = "verifier")]
 fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
     let report_len = std::mem::size_of::<AttestationReport>();
     let signature_len = std::mem::size_of::<Signature>();

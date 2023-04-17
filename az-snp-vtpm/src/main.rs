@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use az_snp_vtpm::certs::CertProvider;
 use az_snp_vtpm::hcl::HclReportWithRuntimeData;
-use az_snp_vtpm::{certs, report, vtpm};
+use az_snp_vtpm::{certs, imds, report, vtpm};
 use clap::Parser;
 use report::Validateable;
 use std::error::Error;
@@ -51,13 +52,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             let hcl_report: HclReportWithRuntimeData = bytes[..].try_into()?;
             let snp_report = hcl_report.snp_report();
 
-            let (vcek, cert_chain) = if imds {
-                certs::get_from_imds()?
+            let cert_provider: Box<dyn CertProvider> = if imds {
+                let response = imds::retrieve_certs()?;
+                Box::new(response)
             } else {
-                let vcek = certs::get_vcek_from_amd(snp_report)?;
-                let cert_chain = certs::get_chain_from_amd()?;
-                (vcek, cert_chain)
+                let amd_kds = certs::AmdKds::new(&snp_report);
+                Box::new(amd_kds)
             };
+
+            let vcek = cert_provider.get_vcek()?;
+            let cert_chain = cert_provider.get_chain()?;
 
             cert_chain.validate()?;
             vcek.validate(&cert_chain)?;

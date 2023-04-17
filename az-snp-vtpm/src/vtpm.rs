@@ -1,12 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use openssl::bn::BigNum;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Public};
-use openssl::rsa::Rsa;
-use openssl::sign::Verifier;
+use rsa::pkcs1v15::Pkcs1v15Sign;
+use rsa::{BigUint, PublicKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tss_esapi::abstraction::nv;
 use tss_esapi::abstraction::public::DecodedKey;
@@ -59,11 +57,11 @@ pub enum AKPubError {
     Tpm(#[from] tss_esapi::Error),
     #[error("asn1 der error")]
     WrongKeyType,
-    #[error("openssl error")]
-    OpenSsl(#[from] openssl::error::ErrorStack),
+    #[error("rsa error")]
+    OpenSsl(#[from] rsa::errors::Error),
 }
 
-pub fn get_ak_pub() -> Result<PKey<Public>, AKPubError> {
+pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
     let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
     let mut context = Context::new(conf)?;
     let tpm_handle: TpmHandle = VTPM_AK_HANDLE.try_into()?;
@@ -75,12 +73,12 @@ pub fn get_ak_pub() -> Result<PKey<Public>, AKPubError> {
         return Err(AKPubError::WrongKeyType);
     };
 
-    let modulus = BigNum::from_slice(&rsa_pk.modulus)?;
-    let public_exponent = BigNum::from_slice(&rsa_pk.public_exponent)?;
+    let bytes = rsa_pk.modulus.as_unsigned_bytes_be();
+    let n = BigUint::from_bytes_be(&bytes);
+    let bytes = rsa_pk.public_exponent.as_unsigned_bytes_be();
+    let e = BigUint::from_bytes_be(&bytes);
 
-    let rsa = Rsa::from_public_components(modulus, public_exponent)?;
-    let pkey = PKey::from_rsa(rsa)?;
-
+    let pkey = RsaPublicKey::new(n, e)?;
     Ok(pkey)
 }
 
@@ -96,7 +94,7 @@ pub enum QuoteError {
     WrongSignature,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Quote {
     pub signature: Vec<u8>,
     pub message: Vec<u8>,
@@ -137,45 +135,54 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     Ok(Quote { signature, message })
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum VerifyError {
     #[error("tss error")]
     Tss(#[from] tss_esapi::Error),
-    #[error("openssl error")]
-    OpenSsl(#[from] openssl::error::ErrorStack),
+    #[error("rsa error")]
+    Rsa(#[from] rsa::errors::Error),
+    #[error("nonce mismatch")]
+    NonceMismatch,
 }
 
 pub trait VerifyVTpmQuote {
-    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<bool, VerifyError>;
+    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<(), VerifyError>;
 }
 
-impl VerifyVTpmQuote for PKey<Public> {
-    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<bool, VerifyError> {
-        let mut verifier = Verifier::new(MessageDigest::sha256(), self)?;
-        verifier.update(&quote.message)?;
-        let is_verified = verifier.verify(&quote.signature)?;
+impl VerifyVTpmQuote for RsaPublicKey {
+    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<(), VerifyError> {
+        let mut hasher = Sha256::new();
+        hasher.update(&quote.message);
+        let hashed = hasher.finalize();
+
+        let scheme = Pkcs1v15Sign::new::<Sha256>();
+        self.verify(scheme, &hashed, &quote.signature)?;
 
         let Some(nonce) = nonce else {
-            return Ok(is_verified);
+            return Ok(());
         };
 
         let attest = Attest::unmarshall(&quote.message)?;
-        let nonce_matches = nonce == attest.extra_data().as_slice();
+        if nonce != attest.extra_data().as_slice() {
+            return Err(VerifyError::NonceMismatch);
+        }
 
-        Ok(nonce_matches)
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsa::pkcs8::DecodePublicKey;
 
     #[test]
     fn test_quote_validation() {
         // Can be retrieved by `get_ak_pub()` or via tpm2-tools:
         // `tpm2_readpublic -c 0x81000003 -f pem -o akpub.pem`
-        let pem = include_bytes!("../test/akpub.pem");
-        let pkey = PKey::public_key_from_pem(pem).unwrap();
+
+        let pem = include_str!("../test/akpub.pem");
+        let pkey = RsaPublicKey::from_public_key_pem(pem).unwrap();
 
         // Can be retrieved by `get_quote()` or via tpm2-tools:
         // `tpm2_quote -c 0x81000003 -l sha256:5,8 -q cafe -m quote_msg -s quote_sig`
@@ -184,17 +191,27 @@ mod tests {
         let quote = Quote { signature, message };
 
         // ignore nonce
-        let result = pkey.verify_quote(&quote, None).unwrap();
-        assert!(result, "Quote validation should not fail");
+        let result = pkey.verify_quote(&quote, None);
+        assert!(result.is_ok(), "Quote validation should not fail");
 
         // proper nonce in message
         let nonce = vec![1, 2, 3];
-        let result = pkey.verify_quote(&quote, Some(&nonce)).unwrap();
-        assert!(result, "Quote verification should not fail");
+        let result = pkey.verify_quote(&quote, Some(&nonce));
+        assert!(result.is_ok(), "Quote verification should not fail");
+
+        // wrong signature
+        let mut wrong_quote = quote.clone();
+        wrong_quote.signature.reverse();
+        let result = pkey.verify_quote(&wrong_quote, None);
+        let expected_error = VerifyError::Rsa(rsa::errors::Error::Verification);
+        let error = result.unwrap_err();
+        assert!(error == expected_error, "Expected RSA verification error");
 
         // improper nonce
         let nonce = vec![1, 2, 3, 4];
-        let result = pkey.verify_quote(&quote, Some(&nonce)).unwrap();
-        assert!(!result, "Quote validation should fail");
+        let result = pkey.verify_quote(&quote, Some(&nonce));
+        let expected_error = VerifyError::NonceMismatch;
+        let error = result.unwrap_err();
+        assert!(error == expected_error, "Expected Nonce Mismatch error");
     }
 }
