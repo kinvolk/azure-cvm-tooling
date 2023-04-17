@@ -5,9 +5,9 @@ const IMDS_CERT_URL: &str = "http://169.254.169.254/metadata/THIM/amd/certificat
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Response {
-    pub vcek_cert: String,
-    pub certificate_chain: String,
+pub struct Certificates {
+    pub vcek_cert: Vec<u8>,
+    pub certificate_chain: Vec<u8>,
 }
 
 #[derive(Error, Debug)]
@@ -18,11 +18,11 @@ pub enum ImdsError {
     Io(#[from] std::io::Error),
 }
 
-pub fn retrieve_certs() -> Result<Response, ImdsError> {
-    let response = ureq::get(IMDS_CERT_URL)
+pub fn get_certs() -> Result<Certificates, ImdsError> {
+    let res: Certificates = ureq::get(IMDS_CERT_URL)
         .set("Metadata", "true")
         .call()
         .map_err(Box::new)?
         .into_json()?;
-    Ok(response)
+    Ok(res)
 }
