@@ -52,13 +52,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             let snp_report = hcl_report.snp_report();
 
             let (vcek, cert_chain) = if imds {
-                let certs = imds::get_certs()?;
-                let vcek = certs::Vcek(certs::X509::from_pem(&certs.vcek_cert)?);
-                let cert_chain = certs::build_chain(&certs.certificate_chain)?;
+                let pem_certs = imds::get_certs()?;
+                let vcek = certs::Vcek::from_pem(&pem_certs.vcek)?;
+                let cert_chain = certs::build_cert_chain(&pem_certs.amd_chain)?;
                 (vcek, cert_chain)
             } else {
                 let vcek = amd_kds::get_vcek(snp_report)?;
-                let cert_chain = amd_kds::get_chain()?;
+                let cert_chain = amd_kds::get_cert_chain()?;
                 (vcek, cert_chain)
             };
 

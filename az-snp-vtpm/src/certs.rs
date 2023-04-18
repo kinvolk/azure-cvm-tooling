@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use crate::imds;
 pub use openssl::x509::X509;
 use thiserror::Error;
 
@@ -20,16 +19,6 @@ pub enum ValidateError {
     AskNotSignedByArk,
     #[error("VCEK is not signed by ASK")]
     VcekNotSignedByAsk,
-}
-
-#[derive(Error, Debug)]
-pub enum CertError {
-    #[error("openssl error")]
-    OpenSsl(#[from] openssl::error::ErrorStack),
-    #[error("IMDS error")]
-    Imds(#[from] imds::ImdsError),
-    #[error("parsing error")]
-    Parse(#[from] ParseError),
 }
 
 impl AmdChain {
@@ -53,6 +42,11 @@ impl AmdChain {
 pub struct Vcek(pub X509);
 
 impl Vcek {
+    pub fn from_pem(pem: &str) -> Result<Self, ParseError> {
+        let cert = X509::from_pem(pem.as_bytes())?;
+        Ok(Self(cert))
+    }
+
     pub fn validate(&self, amd_chain: &AmdChain) -> Result<(), ValidateError> {
         let ask_pubkey = amd_chain.ask.public_key()?;
         let vcek_signed = self.0.verify(&ask_pubkey)?;
@@ -72,8 +66,9 @@ pub enum ParseError {
     WrongAmount(usize, usize),
 }
 
-pub fn build_chain(bytes: &[u8]) -> Result<AmdChain, ParseError> {
-    let certs = X509::stack_from_pem(bytes)?;
+/// build ASK + ARK certificate chain from a multi-pem string
+pub fn build_cert_chain(pem: &str) -> Result<AmdChain, ParseError> {
+    let certs = X509::stack_from_pem(pem.as_bytes())?;
 
     if certs.len() != 2 {
         return Err(ParseError::WrongAmount(2, certs.len()));

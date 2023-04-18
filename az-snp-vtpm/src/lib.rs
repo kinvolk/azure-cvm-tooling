@@ -21,7 +21,7 @@
 //!    let snp_report = hcl_report.snp_report();
 //!
 //!    let vcek = amd_kds::get_vcek(&snp_report)?;
-//!    let cert_chain = amd_kds::get_chain()?;
+//!    let cert_chain = amd_kds::get_cert_chain()?;
 //!
 //!    cert_chain.validate()?;
 //!    vcek.validate(&cert_chain)?;
@@ -32,6 +32,16 @@
 //!    Ok(())
 //!  }
 //!  ```
+
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum HttpError {
+    #[error("HTTP error")]
+    Http(#[from] Box<ureq::Error>),
+    #[error("failed to read HTTP response")]
+    Io(#[from] std::io::Error),
+}
 
 #[cfg(feature = "verifier")]
 pub mod amd_kds;

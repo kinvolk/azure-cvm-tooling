@@ -1,4 +1,8 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use crate::certs::{AmdChain, Vcek};
+use crate::HttpError;
 use openssl::x509::X509;
 use sev::firmware::guest::types::AttestationReport;
 use thiserror::Error;
@@ -8,15 +12,7 @@ const KDS_VCEK: &str = "/vcek/v1";
 const SEV_PROD_NAME: &str = "Milan";
 const KDS_CERT_CHAIN: &str = "cert_chain";
 
-#[derive(Error, Debug)]
-pub enum AmdKdsError {
-    #[error("HTTP error")]
-    Http(#[from] Box<ureq::Error>),
-    #[error("io error")]
-    Io(#[from] std::io::Error),
-}
-
-fn get(url: &str) -> Result<Vec<u8>, AmdKdsError> {
+fn get(url: &str) -> Result<Vec<u8>, HttpError> {
     let mut body = ureq::get(url).call().map_err(Box::new)?.into_reader();
     let mut buffer = Vec::new();
     body.read_to_end(&mut buffer)?;
@@ -24,14 +20,15 @@ fn get(url: &str) -> Result<Vec<u8>, AmdKdsError> {
 }
 
 #[derive(Error, Debug)]
-pub enum CertError {
+pub enum AmdKdsError {
     #[error("openssl error")]
     OpenSsl(#[from] openssl::error::ErrorStack),
-    #[error("AMD KDS error")]
-    AmdKdsError(#[from] AmdKdsError),
+    #[error("Http error")]
+    Http(#[from] HttpError),
 }
 
-pub fn get_chain() -> Result<AmdChain, CertError> {
+/// Retrieve the AMD chain of trust (ASK & ARK) from AMD's KDS
+pub fn get_cert_chain() -> Result<AmdChain, AmdKdsError> {
     let url = format!("{KDS_CERT_SITE}{KDS_VCEK}/{SEV_PROD_NAME}/{KDS_CERT_CHAIN}");
     let bytes = get(&url)?;
 
@@ -52,7 +49,8 @@ fn hexify(bytes: &[u8]) -> String {
     hex_string
 }
 
-pub fn get_vcek(report: &AttestationReport) -> Result<Vcek, CertError> {
+/// Retrieve a VCEK cert from AMD's KDS, based on an AttestationReport's platform information
+pub fn get_vcek(report: &AttestationReport) -> Result<Vcek, AmdKdsError> {
     let hw_id = hexify(&report.chip_id);
     let url = format!(
         "{KDS_CERT_SITE}{KDS_VCEK}/{SEV_PROD_NAME}/{hw_id}?blSPL={:02}&teeSPL={:02}&snpSPL={:02}&ucodeSPL={:02}",
