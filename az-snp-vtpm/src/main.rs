@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use az_snp_vtpm::hcl::HclReportWithRuntimeData;
+use az_snp_vtpm::hcl::HclData;
 use az_snp_vtpm::{amd_kds, certs, imds, report, vtpm};
 use clap::Parser;
 use report::Validateable;
@@ -48,8 +48,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Some(file_name) => read_file(&file_name)?,
                 None => vtpm::get_report()?,
             };
-            let hcl_report: HclReportWithRuntimeData = bytes[..].try_into()?;
-            let snp_report = hcl_report.snp_report();
+            let hcl_data: HclData = bytes.as_slice().try_into()?;
+            let snp_report = hcl_data.report().snp_report();
 
             let (vcek, cert_chain) = if imds {
                 let pem_certs = imds::get_certs()?;
