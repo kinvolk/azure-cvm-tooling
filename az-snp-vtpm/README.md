@@ -25,3 +25,11 @@ Retrieve SEV-SNP report, validate and print it:
 ```bash
 sudo ./snp-vtpm -p
 ```
+
+## Example Project
+
+There is a project in the `./example` folder depicting how the crate can be leveraged in a Remote Attestation flow. **Note:** the code is merely illustrative and doesn't feature exhaustive validation, which would be required in a production scenario.
+
+```bash
+cargo b -p example
+```
