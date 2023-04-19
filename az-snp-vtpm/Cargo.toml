@@ -14,17 +14,25 @@ path = "src/lib.rs"
 [[bin]]
 name = "snp-vtpm"
 path = "src/main.rs"
+required-features = ["attester", "verifier"]
 
 [dependencies]
 bincode = "1"
 clap = { version = "4", features = ["derive"] }
 jsonwebkey = { version = "0.3.5", features = ["pkcs-convert"] }
 memoffset = "0.8.0"
-openssl = { version = "0.10.45", features = ["vendored"] }
-reqwest = { version = "0.11", features = ["blocking"] }
+openssl = { version = "0.10.45", features = ["vendored"], optional = true }
+rsa = { version = "0.8.2", features = ["pkcs5", "sha2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sev = { version = "1", features = ["openssl"] }
+sev = "1"
+sha2 = "0.10.6"
 static_assertions = "^1.1.0"
 thiserror = "1.0.38"
 tss-esapi = "7.2"
+ureq = { version = "2.6.2", default-features = false, features = ["json"] }
+
+[features]
+default = ["attester", "verifier"]
+attester = []
+verifier = ["openssl", "sev/openssl", "ureq/tls"]

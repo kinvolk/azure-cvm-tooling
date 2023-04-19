@@ -2,10 +2,11 @@
 // Licensed under the MIT License.
 
 use memoffset::offset_of;
+#[cfg(feature = "verifier")]
 use openssl::pkey::{PKey, Public};
-use openssl::{self, sha::sha256};
 use serde::{Deserialize, Serialize};
 use sev::firmware::guest::types::AttestationReport;
+use sha2::{Digest, Sha256};
 use static_assertions::const_assert;
 use std::convert::TryFrom;
 use thiserror::Error;
@@ -133,6 +134,7 @@ impl TryFrom<&[u8]> for HclReportWithRuntimeData {
     }
 }
 
+#[cfg(feature = "verifier")]
 impl HclReportWithRuntimeData {
     pub fn get_attestation_key(&self) -> Result<PKey<Public>, openssl::error::ErrorStack> {
         let key = self.runtime_data.keys[0].key.as_ref();
@@ -153,8 +155,12 @@ pub enum ValidationError {
 pub fn verify_report_data(bytes: &[u8]) -> Result<(), ValidationError> {
     let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
     let report_data = &hcl_report.hw_report.report_data[..32];
-    let hash = sha256(var_data);
-    if hash != report_data {
+
+    let mut hasher = Sha256::new();
+    hasher.update(var_data);
+    let hash = hasher.finalize();
+
+    if hash.as_slice() != report_data {
         return Err(ValidationError::ReportDataMismatchError);
     }
     Ok(())
@@ -170,6 +176,7 @@ mod tests {
         let res = verify_report_data(bytes);
         assert!(res.is_ok());
     }
+    #[cfg(feature = "verifier")]
     #[test]
     fn test_hcl_report() {
         let bytes: &[u8] = include_bytes!("../test/hcl-report.bin");
