@@ -1,20 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use openssl::x509::X509;
-use reqwest::blocking::get as http_get;
-use reqwest::blocking::Client as http_client;
-use reqwest::StatusCode;
-use serde::Deserialize;
-use sev::firmware::guest::types::AttestationReport;
-use std::error::Error as StdError;
+pub use openssl::x509::X509;
 use thiserror::Error;
-
-const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
-const IMDS_CERT_URL: &str = "http://169.254.169.254/metadata/THIM/amd/certification";
-const KDS_VCEK: &str = "/vcek/v1";
-const SEV_PROD_NAME: &str = "Milan";
-const KDS_CERT_CHAIN: &str = "cert_chain";
 
 pub struct AmdChain {
     pub ask: X509,
@@ -22,7 +10,7 @@ pub struct AmdChain {
 }
 
 #[derive(Error, Debug)]
-pub enum CertError {
+pub enum ValidateError {
     #[error("openssl error")]
     OpenSsl(#[from] openssl::error::ErrorStack),
     #[error("ARK is not self-signed")]
@@ -31,26 +19,20 @@ pub enum CertError {
     AskNotSignedByArk,
     #[error("VCEK is not signed by ASK")]
     VcekNotSignedByAsk,
-    #[error("AMD Cert Chain download failed with status code {0}")]
-    CertChainDownloadFailed(StatusCode),
-    #[error("VCEK download failed with status code {0}")]
-    VcekDownloadFailed(StatusCode),
-    #[error("HTTP error")]
-    Http(#[from] reqwest::Error),
 }
 
 impl AmdChain {
-    pub fn validate(&self) -> Result<(), CertError> {
+    pub fn validate(&self) -> Result<(), ValidateError> {
         let ark_pubkey = self.ark.public_key()?;
 
         let ark_signed = self.ark.verify(&ark_pubkey)?;
         if !ark_signed {
-            return Err(CertError::ArkNotSelfSigned);
+            return Err(ValidateError::ArkNotSelfSigned);
         }
 
         let ask_signed = self.ask.verify(&ark_pubkey)?;
         if !ask_signed {
-            return Err(CertError::AskNotSignedByArk);
+            return Err(ValidateError::AskNotSignedByArk);
         }
 
         Ok(())
@@ -60,97 +42,36 @@ impl AmdChain {
 pub struct Vcek(pub X509);
 
 impl Vcek {
-    pub fn validate(&self, amd_chain: &AmdChain) -> Result<(), CertError> {
+    pub fn from_pem(pem: &str) -> Result<Self, ParseError> {
+        let cert = X509::from_pem(pem.as_bytes())?;
+        Ok(Self(cert))
+    }
+
+    pub fn validate(&self, amd_chain: &AmdChain) -> Result<(), ValidateError> {
         let ask_pubkey = amd_chain.ask.public_key()?;
         let vcek_signed = self.0.verify(&ask_pubkey)?;
         if !vcek_signed {
-            return Err(CertError::VcekNotSignedByAsk);
+            return Err(ValidateError::VcekNotSignedByAsk);
         }
 
         Ok(())
     }
 }
 
-pub fn get_chain_from_amd() -> Result<AmdChain, CertError> {
-    let url = format!("{KDS_CERT_SITE}{KDS_VCEK}/{SEV_PROD_NAME}/{KDS_CERT_CHAIN}");
-    let resp = http_get(url)?;
-    let status = resp.status();
-    if status != 200 {
-        return Err(CertError::CertChainDownloadFailed(status));
-    }
-    let bytes = resp.bytes()?;
-    let certs = X509::stack_from_pem(&bytes)?;
-
-    let ask = certs[0].clone();
-    let ark = certs[1].clone();
-
-    let chain = AmdChain { ask, ark };
-
-    Ok(chain)
+#[derive(Error, Debug)]
+pub enum ParseError {
+    #[error("openssl error")]
+    OpenSsl(#[from] openssl::error::ErrorStack),
+    #[error("wrong amount of certificates (expected {0:?}, found {1:?})")]
+    WrongAmount(usize, usize),
 }
 
-fn hexify(bytes: &[u8]) -> String {
-    let mut hex_string = String::new();
-    for byte in bytes {
-        hex_string.push_str(&format!("{:02x}", byte));
-    }
-    hex_string
-}
-
-pub fn get_vcek_from_amd(report: &AttestationReport) -> Result<Vcek, CertError> {
-    let hw_id = hexify(&report.chip_id);
-    let url = format!(
-        "{KDS_CERT_SITE}{KDS_VCEK}/{SEV_PROD_NAME}/{hw_id}?blSPL={:02}&teeSPL={:02}&snpSPL={:02}&ucodeSPL={:02}",
-        report.reported_tcb.boot_loader,
-        report.reported_tcb.tee,
-        report.reported_tcb.snp,
-        report.reported_tcb.microcode
-    );
-
-    let resp = http_get(url)?;
-    let status = resp.status();
-    if status != 200 {
-        return Err(CertError::VcekDownloadFailed(status));
-    }
-    let bytes = resp.bytes()?;
-    let cert = X509::from_der(&bytes)?;
-    Ok(Vcek(cert))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ImdsResponse {
-    vcek_cert: String,
-    certificate_chain: String,
-}
-
-pub fn get_from_imds() -> Result<(Vcek, AmdChain), Box<dyn StdError>> {
-    let client = http_client::new();
-    let resp = client
-        .get(IMDS_CERT_URL)
-        .header("Metadata", "true")
-        .send()?;
-
-    let status = resp.status();
-    if status != 200 {
-        let err_str = format!("Failed to get certificates from IMDS endpoint: HTTP {status}");
-        return Err(err_str.into());
-    }
-    let text = resp.text()?;
-    let res: ImdsResponse = serde_json::from_str(&text)?;
-
-    let vcek = Vcek(X509::from_pem(res.vcek_cert.as_bytes())?);
-    let cert_chain = build_chain(res.certificate_chain.as_bytes())?;
-
-    Ok((vcek, cert_chain))
-}
-
-fn build_chain(bytes: &[u8]) -> Result<AmdChain, Box<dyn StdError>> {
-    let certs = X509::stack_from_pem(bytes)?;
+/// build ASK + ARK certificate chain from a multi-pem string
+pub fn build_cert_chain(pem: &str) -> Result<AmdChain, ParseError> {
+    let certs = X509::stack_from_pem(pem.as_bytes())?;
 
     if certs.len() != 2 {
-        let err_str = format!("Expected 2 certificates in chain, got {}", certs.len());
-        return Err(err_str.into());
+        return Err(ParseError::WrongAmount(2, certs.len()));
     }
 
     let ask = certs[0].clone();
