@@ -33,3 +33,37 @@ There is a project in the `./example` folder depicting how the crate can be leve
 ```bash
 cargo b -p example
 ```
+
+## SEV-SNP Report & vTPM 
+
+The vTPM is linked to the SEV-SNP report via the vTPM Attestation Key (AK). The public AK is part of a Runtime Data struct, which is hashed and submitted as Report Data when generating the SNP report. To provide freshness guarantees in an attestation exchange we can request a vTPM quote with a nonce. The resulting message is signed by the AK.
+
+```
+                              ┌────────────────────────┐
+                              │ HCL Data               │
+                              │                        │
+                              │ ┌──────────────────────┴─┐  ─┐
+                              │ │ Runtime Data           │   │
+                              │ │                        │   │
+    ┌──────────────────────┐  │ │ ┌────────────────────┐ │   ├─┐
+  ┌─┤ vvTPM AK             ├──┼─┼─┤ vTPM Public AK     │ │   │ │
+  │ └──────────────────────┘  │ │ └────────────────────┘ │   │ │
+  │         ┌──────────────┐  │ └──────────────────────┬─┘  ─┘ │
+  │         │ vTPM Quote   │  │ ┌────────────────────┐ │       │
+  │         │              │  │ │ HCL Report         │ │       │           
+signs ┌─  ┌─┴────────────┐ │  │ │                    │ │     sha256
+  │   │   │ Message      │ │  │ │ ┌────────────────┐ │ │       │
+  │   │   │              │ │  │ │ │ SEV-SNP Report │ │ │       │ 
+  │   │   │ ┌──────────┐ │ │  │ │ │                │ │ │       │ 
+  │   │   │ │ PCR0     │ │ │  │ │ │ ┌──────────────┴─┴─┴─┐     │    
+  │   │   │ └──────────┘ │ │  │ │ │ │ Report Data        │ ◄───┘
+  │   │   │   ...        │ │  │ │ │ └──────────────┬─┬─┬─┘ 
+  │   │   │ ┌──────────┐ │ │  │ │ └────────────────┘ │ │
+  └─► │   │ │ PCRn     │ │ │  │ └────────────────────┘ │
+      │   │ └──────────┘ │ │  └────────────────────────┘
+      │   │ ┌──────────┐ │ │  
+      │   │ │ Nonce    │ │ │
+      │   │ └──────────┘ │ │
+      └─  └─┬────────────┘ │
+            └──────────────┘
+```
