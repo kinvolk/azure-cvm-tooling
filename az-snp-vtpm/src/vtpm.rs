@@ -1,10 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use rsa::pkcs1v15::Pkcs1v15Sign;
-use rsa::{BigUint, PublicKey, RsaPublicKey};
+#[cfg(feature = "verifier")]
+use openssl::hash::MessageDigest;
+#[cfg(feature = "verifier")]
+use openssl::pkey::{PKey, Public};
+#[cfg(feature = "verifier")]
+use openssl::sign::Verifier;
+use rsa::{BigUint, RsaPublicKey};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tss_esapi::abstraction::nv;
 use tss_esapi::abstraction::public::DecodedKey;
@@ -135,32 +139,32 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     Ok(Quote { signature, message })
 }
 
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, Debug)]
 pub enum VerifyError {
     #[error("tss error")]
     Tss(#[from] tss_esapi::Error),
-    #[error("rsa error")]
-    Rsa(#[from] rsa::errors::Error),
+    #[error("openssl error")]
+    OpenSsl(#[from] openssl::error::ErrorStack),
     #[error("nonce mismatch")]
     NonceMismatch,
+    #[error("quote is not signed by the public key")]
+    SignatureMismatch,
 }
 
+#[cfg(feature = "verifier")]
 pub trait VerifyVTpmQuote {
-    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<(), VerifyError>;
+    fn verify_quote(&self, quote: &Quote, nonce: &[u8]) -> Result<(), VerifyError>;
 }
 
-impl VerifyVTpmQuote for RsaPublicKey {
-    fn verify_quote(&self, quote: &Quote, nonce: Option<&[u8]>) -> Result<(), VerifyError> {
-        let mut hasher = Sha256::new();
-        hasher.update(&quote.message);
-        let hashed = hasher.finalize();
-
-        let scheme = Pkcs1v15Sign::new::<Sha256>();
-        self.verify(scheme, &hashed, &quote.signature)?;
-
-        let Some(nonce) = nonce else {
-            return Ok(());
-        };
+#[cfg(feature = "verifier")]
+impl VerifyVTpmQuote for PKey<Public> {
+    fn verify_quote(&self, quote: &Quote, nonce: &[u8]) -> Result<(), VerifyError> {
+        let mut verifier = Verifier::new(MessageDigest::sha256(), self)?;
+        verifier.update(&quote.message)?;
+        let is_verified = verifier.verify(&quote.signature)?;
+        if !is_verified {
+            return Err(VerifyError::SignatureMismatch);
+        }
 
         let attest = Attest::unmarshall(&quote.message)?;
         if nonce != attest.extra_data().as_slice() {
@@ -174,15 +178,15 @@ impl VerifyVTpmQuote for RsaPublicKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsa::pkcs8::DecodePublicKey;
 
+    #[cfg(feature = "verifier")]
     #[test]
     fn test_quote_validation() {
         // Can be retrieved by `get_ak_pub()` or via tpm2-tools:
         // `tpm2_readpublic -c 0x81000003 -f pem -o akpub.pem`
 
-        let pem = include_str!("../test/akpub.pem");
-        let pkey = RsaPublicKey::from_public_key_pem(pem).unwrap();
+        let pem = include_bytes!("../test/akpub.pem");
+        let pkey = PKey::public_key_from_pem(pem).unwrap();
 
         // Can be retrieved by `get_quote()` or via tpm2-tools:
         // `tpm2_quote -c 0x81000003 -l sha256:5,8 -q cafe -m quote_msg -s quote_sig`
@@ -190,28 +194,28 @@ mod tests {
         let signature = include_bytes!("../test/quote_sig").to_vec();
         let quote = Quote { signature, message };
 
-        // ignore nonce
-        let result = pkey.verify_quote(&quote, None);
-        assert!(result.is_ok(), "Quote validation should not fail");
-
         // proper nonce in message
         let nonce = vec![1, 2, 3];
-        let result = pkey.verify_quote(&quote, Some(&nonce));
+        let result = pkey.verify_quote(&quote, &nonce);
         assert!(result.is_ok(), "Quote verification should not fail");
 
         // wrong signature
         let mut wrong_quote = quote.clone();
         wrong_quote.signature.reverse();
-        let result = pkey.verify_quote(&wrong_quote, None);
-        let expected_error = VerifyError::Rsa(rsa::errors::Error::Verification);
+        let result = pkey.verify_quote(&wrong_quote, &nonce);
         let error = result.unwrap_err();
-        assert!(error == expected_error, "Expected RSA verification error");
+        assert!(
+            matches!(error, VerifyError::SignatureMismatch),
+            "Expected signature mismatch"
+        );
 
         // improper nonce
         let nonce = vec![1, 2, 3, 4];
-        let result = pkey.verify_quote(&quote, Some(&nonce));
-        let expected_error = VerifyError::NonceMismatch;
+        let result = pkey.verify_quote(&quote, &nonce);
         let error = result.unwrap_err();
-        assert!(error == expected_error, "Expected Nonce Mismatch error");
+        assert!(
+            matches!(error, VerifyError::NonceMismatch),
+            "Expected nonce verification error"
+        );
     }
 }

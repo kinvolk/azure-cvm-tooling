@@ -12,7 +12,7 @@ use std::convert::TryFrom;
 use thiserror::Error;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum IgvmHashType {
     Invalid = 0,
     Sha256 = 1,
@@ -84,62 +84,93 @@ pub struct VmConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ReportData {
+pub struct RuntimeData {
     pub keys: [jsonwebkey::JsonWebKey; 1],
     #[serde(rename = "vm-configuration")]
     pub vm_configuration: VmConfiguration,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct HclReportWithRuntimeData {
-    pub hcl_report: HclAttestationReport,
-    pub runtime_data: ReportData,
-}
-
-impl HclReportWithRuntimeData {
+impl HclAttestationReport {
     pub fn snp_report(&self) -> &AttestationReport {
-        &self.hcl_report.hw_report
+        &self.hw_report
+    }
+
+    pub fn verify_report_data(&self, var_data: &VarData) -> Result<(), ValidationError> {
+        if self.hcl_data.report_data_hash_type != IgvmHashType::Sha256 {
+            unimplemented!();
+        }
+
+        let report_data = &self.hw_report.report_data[..32];
+        let hash = var_data.sha256();
+
+        if hash.as_slice() != report_data {
+            return Err(ValidationError::ReportDataMismatchError);
+        }
+        Ok(())
     }
 }
 
-pub fn buf_to_hcl_data(
-    bytes: &[u8],
-) -> Result<(HclAttestationReport, &[u8]), Box<bincode::ErrorKind>> {
-    let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
-    let var_data_offset =
-        offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
-    let var_data = &bytes[var_data_offset..];
-    let var_data = &var_data[..hcl_report.hcl_data.variable_data_size as usize];
-    Ok((hcl_report, var_data))
+#[derive(Debug)]
+pub struct VarData(Vec<u8>);
+
+impl VarData {
+    pub fn sha256(&self) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        hasher.update(&self.0);
+        hasher.finalize().to_vec()
+    }
+}
+
+#[derive(Debug)]
+pub struct HclData(HclAttestationReport, VarData);
+
+impl HclData {
+    pub fn report(&self) -> &HclAttestationReport {
+        &self.0
+    }
+
+    pub fn var_data(&self) -> &VarData {
+        &self.1
+    }
+}
+
+impl TryFrom<&[u8]> for HclData {
+    type Error = Box<bincode::ErrorKind>;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let hcl_report: HclAttestationReport = bincode::deserialize(bytes)?;
+        let var_data_offset =
+            offset_of!(HclAttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
+        let var_data_end = var_data_offset + hcl_report.hcl_data.variable_data_size as usize;
+        let var_data = VarData(bytes[var_data_offset..var_data_end].to_vec());
+        Ok(HclData(hcl_report, var_data))
+    }
 }
 
 #[derive(Error, Debug)]
 pub enum ParseError {
-    #[error("bincode error")]
-    Bincode(#[from] Box<bincode::ErrorKind>),
     #[error("json parse error")]
     Report(#[from] serde_json::Error),
+    #[error("openssl error")]
+    OpenSSL(#[from] openssl::error::ErrorStack),
 }
 
-impl TryFrom<&[u8]> for HclReportWithRuntimeData {
+impl TryFrom<&VarData> for RuntimeData {
     type Error = ParseError;
 
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
-        let runtime_data: ReportData = serde_json::from_slice(var_data)?;
-        Ok(HclReportWithRuntimeData {
-            hcl_report,
-            runtime_data,
-        })
+    fn try_from(var_data: &VarData) -> Result<Self, Self::Error> {
+        let runtime_data: Self = serde_json::from_slice(&var_data.0)?;
+        Ok(runtime_data)
     }
 }
 
 #[cfg(feature = "verifier")]
-impl HclReportWithRuntimeData {
-    pub fn get_attestation_key(&self) -> Result<PKey<Public>, openssl::error::ErrorStack> {
-        let key = self.runtime_data.keys[0].key.as_ref();
+impl RuntimeData {
+    /// Parse the the vTPM public Attestation Key PEM
+    pub fn get_attestation_key(&self) -> Result<PKey<Public>, ParseError> {
+        let key = self.keys[0].key.as_ref();
         let pubkey = key.to_pem();
-        let pubkey = openssl::pkey::PKey::public_key_from_pem(pubkey.as_bytes())?;
+        let pubkey = PKey::public_key_from_pem(pubkey.as_bytes())?;
         Ok(pubkey)
     }
 }
@@ -148,22 +179,8 @@ impl HclReportWithRuntimeData {
 pub enum ValidationError {
     #[error("bincode error")]
     Bincode(#[from] Box<bincode::ErrorKind>),
-    #[error("ReportData field does not match RuntimeData hash")]
+    #[error("ReportData field does not match HCL RuntimeData hash")]
     ReportDataMismatchError,
-}
-
-pub fn verify_report_data(bytes: &[u8]) -> Result<(), ValidationError> {
-    let (hcl_report, var_data) = buf_to_hcl_data(bytes)?;
-    let report_data = &hcl_report.hw_report.report_data[..32];
-
-    let mut hasher = Sha256::new();
-    hasher.update(var_data);
-    let hash = hasher.finalize();
-
-    if hash.as_slice() != report_data {
-        return Err(ValidationError::ReportDataMismatchError);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -173,16 +190,19 @@ mod tests {
     #[test]
     fn test_report_data_hash() {
         let bytes = include_bytes!("../test/hcl-report.bin");
-        let res = verify_report_data(bytes);
+        let HclData(hcl_report, var_data) = bytes.as_slice().try_into().unwrap();
+        let res = hcl_report.verify_report_data(&var_data);
         assert!(res.is_ok());
     }
+
     #[cfg(feature = "verifier")]
     #[test]
     fn test_hcl_report() {
         let bytes: &[u8] = include_bytes!("../test/hcl-report.bin");
-        let hcl_report: HclReportWithRuntimeData = bytes.try_into().unwrap();
-        println!("{:?}", hcl_report.runtime_data);
-        let pubkey = hcl_report.get_attestation_key().unwrap();
+        let HclData(_, ref var_data) = bytes.try_into().unwrap();
+        let runtime_data: RuntimeData = var_data.try_into().unwrap();
+        println!("{:?}", runtime_data);
+        let pubkey = runtime_data.get_attestation_key().unwrap();
         assert!(pubkey.size() == 256);
     }
 }
