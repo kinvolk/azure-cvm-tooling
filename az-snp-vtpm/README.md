@@ -46,7 +46,7 @@ The vTPM is linked to the SEV-SNP report via the vTPM Attestation Key (AK). The 
                               │ │ Runtime Data           │   │
                               │ │                        │   │
     ┌──────────────────────┐  │ │ ┌────────────────────┐ │   ├─┐
-  ┌─┤ vvTPM AK             ├──┼─┼─┤ vTPM Public AK     │ │   │ │
+  ┌─┤ vTPM AK              ├──┼─┼─┤ vTPM Public AK     │ │   │ │
   │ └──────────────────────┘  │ │ └────────────────────┘ │   │ │
   │         ┌──────────────┐  │ └──────────────────────┬─┘  ─┘ │
   │         │ vTPM Quote   │  │ ┌────────────────────┐ │       │
