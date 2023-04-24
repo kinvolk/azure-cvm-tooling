@@ -1,6 +1,5 @@
 param location string
-param subnetName string
-param vnetId string
+param subnetId string = ''
 param virtualMachineName string
 param imageId string = ''
 param osDiskType string = 'Premium_LRS'
@@ -9,22 +8,44 @@ param virtualMachineSize string = 'Standard_DC2as_v5'
 param nicDeleteOption string = 'Delete'
 param adminUsername string = 'azureuser'
 param assignPublicIP bool = false
-
 @secure()
 param adminPublicKey string
 param securityType string = 'ConfidentialVM'
 param secureBoot bool = true
 param vTPM bool = true
 
-var subnetRef = '${vnetId}/subnets/${subnetName}'
 var networkInterfaceName = '${virtualMachineName}-nic'
 var publicIPName = '${virtualMachineName}-ip'
+var virtualNetworkName = '${virtualMachineName}-vnet'
+var subnetName = '${virtualMachineName}-subnet'
+var subnetAddressPrefix = '10.1.0.0/24'
+var addressPrefix = '10.1.0.0/16'
 
 resource publicIP_resource 'Microsoft.Network/publicIPAddresses@2022-07-01' = if (assignPublicIP == true) {
   name: publicIPName
   location: location
   properties: {
     publicIPAllocationMethod: 'Dynamic'
+  }
+}
+
+resource virtualNetwork_resource 'Microsoft.Network/virtualNetworks@2021-05-01' = if (subnetId == '') {
+  name: virtualNetworkName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        addressPrefix
+      ]
+    }
+  }
+}
+
+resource subnet_resource 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = if (subnetId == '') {
+  parent: virtualNetwork_resource
+  name: subnetName
+  properties: {
+    addressPrefix: subnetAddressPrefix
   }
 }
 
@@ -38,7 +59,7 @@ resource networkInterfaceName_resource 'Microsoft.Network/networkInterfaces@2021
         properties: {
           subnet: {
             #disable-next-line use-resource-id-functions
-            id: subnetRef
+            id: (subnetId == '') ? subnet_resource.id : subnetId
           }
           privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: assignPublicIP ? {
