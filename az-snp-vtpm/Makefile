@@ -1,8 +1,6 @@
-CVM_RESOURCE_GROUP ?= <cvm rg>
+CVM_RESOURCE_GROUP ?= azure-cvm-tooling-ci
 LOCATION ?= eastus
-VNET_ID ?= /subscriptions/<sub id>/resourceGroups/<vnet rg>/providers/Microsoft.Network/virtualNetworks/<vnet name>
 IMAGE_ID ?= -
-SUBNET_NAME ?= default
 SSH_PUB_KEY_PATH ?= ~/.ssh/id_rsa.pub
 ADMIN_PUBLIC_KEY = $(shell cat $(SSH_PUB_KEY_PATH))
 ifeq ($(SUFFIX),)
@@ -19,8 +17,6 @@ deploy:
 		--name $(VM_NAME) \
 		--parameters virtualMachineName=$(VM_NAME) \
 		--parameters location=$(LOCATION) \
-		--parameters subnetName=$(SUBNET_NAME) \
-		--parameters vnetId=$(VNET_ID) \
 		$(if $(IMAGE_ID:-=),--parameters imageId=$(IMAGE_ID)) \
 		--parameters adminPublicKey='$(ADMIN_PUBLIC_KEY)' \
 		--parameters assignPublicIP=$(ASSIGN_PUBLIC_IP) && \
@@ -39,4 +35,7 @@ delete:
 		--yes && \
 	az network public-ip delete \
 		--resource-group $(CVM_RESOURCE_GROUP) \
-		--name $(VM_NAME)-ip
+		--name $(VM_NAME)-ip && \
+	az network vnet delete \
+		--resource-group azure-cvm-tooling-ci \
+		--name $(VM_NAME)-vnet
