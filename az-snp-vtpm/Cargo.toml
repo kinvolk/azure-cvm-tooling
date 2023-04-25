@@ -36,3 +36,6 @@ ureq = { version = "2.6.2", default-features = false, features = ["json"] }
 default = ["attester", "verifier"]
 attester = []
 verifier = ["openssl", "sev/openssl", "ureq/tls"]
+
+[workspace]
+members = ["example"]
