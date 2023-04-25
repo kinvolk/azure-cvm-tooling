@@ -33,11 +33,11 @@ jobs:
         rustup component add clippy
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --all
       working-directory: az-snp-vtpm
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all
       working-directory: az-snp-vtpm
 
     - name: Format
@@ -45,5 +45,5 @@ jobs:
       working-directory: az-snp-vtpm
 
     - name: Lint
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features --all -- -D warnings
       working-directory: az-snp-vtpm
