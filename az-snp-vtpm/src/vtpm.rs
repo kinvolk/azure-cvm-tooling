@@ -38,11 +38,6 @@ const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 9] = [
     PcrSlot::Slot14,
 ];
 
-pub fn has_tpm_device() -> bool {
-    let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
-    Context::new(conf).is_ok()
-}
-
 pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
     use tss_esapi::handles::NvIndexTpmHandle;
     let nv_index = NvIndexTpmHandle::new(VTPM_HCL_REPORT_NV_INDEX)?;
