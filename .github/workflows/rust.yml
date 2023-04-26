@@ -37,11 +37,11 @@ jobs:
       working-directory: az-snp-vtpm
 
     - name: Check verifier-only
-      run: cargo check --verbose --no-default-features features=verifier
+      run: cargo check --verbose --no-default-features --features=verifier
       working-directory: az-snp-vtpm
 
     - name: Check attester-only
-      run: cargo check --verbose --no-default-features features=attester
+      run: cargo check --verbose --no-default-features --features=attester
       working-directory: az-snp-vtpm
 
     - name: Run tests
