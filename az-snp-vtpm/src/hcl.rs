@@ -151,6 +151,7 @@ impl TryFrom<&[u8]> for HclData {
 pub enum ParseError {
     #[error("json parse error")]
     Report(#[from] serde_json::Error),
+    #[cfg(feature = "verifier")]
     #[error("openssl error")]
     OpenSSL(#[from] openssl::error::ErrorStack),
 }
