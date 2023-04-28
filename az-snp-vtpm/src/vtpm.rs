@@ -18,10 +18,14 @@ use tss_esapi::interface_types::resource_handles::NvAuth;
 use tss_esapi::interface_types::session_handles::AuthSession;
 use tss_esapi::structures::pcr_selection_list::PcrSelectionListBuilder;
 use tss_esapi::structures::pcr_slot::PcrSlot;
+#[cfg(feature = "verifier")]
+use tss_esapi::structures::Attest;
 use tss_esapi::structures::SignatureScheme;
-use tss_esapi::structures::{Attest, AttestInfo, Data, Signature};
+use tss_esapi::structures::{AttestInfo, Data, Signature};
 use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
-use tss_esapi::traits::{Marshall, UnMarshall};
+use tss_esapi::traits::Marshall;
+#[cfg(feature = "verifier")]
+use tss_esapi::traits::UnMarshall;
 use tss_esapi::Context;
 
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
@@ -134,6 +138,7 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     Ok(Quote { signature, message })
 }
 
+#[cfg(feature = "verifier")]
 #[derive(Error, Debug)]
 pub enum VerifyError {
     #[error("tss error")]
