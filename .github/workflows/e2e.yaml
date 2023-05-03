@@ -1,8 +1,6 @@
 name: e2e
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -17,7 +15,7 @@ jobs:
     steps:
     - name: Create resource suffix
       run: >
-        echo "SUFFIX=$(echo $RANDOM | md5sum | head -c6)"
+        echo "SUFFIX=${{ github.event.number }}-$(echo $RANDOM | md5sum | head -c6)"
         >> "$GITHUB_ENV"
 
     - uses: actions/checkout@v3
