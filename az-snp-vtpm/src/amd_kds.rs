@@ -4,7 +4,7 @@
 use crate::certs::{AmdChain, Vcek};
 use crate::HttpError;
 use openssl::x509::X509;
-use sev::firmware::guest::types::AttestationReport;
+use sev::firmware::guest::AttestationReport;
 use thiserror::Error;
 
 const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
@@ -54,7 +54,7 @@ pub fn get_vcek(report: &AttestationReport) -> Result<Vcek, AmdKdsError> {
     let hw_id = hexify(&report.chip_id);
     let url = format!(
         "{KDS_CERT_SITE}{KDS_VCEK}/{SEV_PROD_NAME}/{hw_id}?blSPL={:02}&teeSPL={:02}&snpSPL={:02}&ucodeSPL={:02}",
-        report.reported_tcb.boot_loader,
+        report.reported_tcb.bootloader,
         report.reported_tcb.tee,
         report.reported_tcb.snp,
         report.reported_tcb.microcode

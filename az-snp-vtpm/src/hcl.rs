@@ -5,7 +5,7 @@ use memoffset::offset_of;
 #[cfg(feature = "verifier")]
 use openssl::pkey::{PKey, Public};
 use serde::{Deserialize, Serialize};
-use sev::firmware::guest::types::AttestationReport;
+use sev::firmware::guest::AttestationReport;
 use sha2::{Digest, Sha256};
 use static_assertions::const_assert;
 use std::convert::TryFrom;
