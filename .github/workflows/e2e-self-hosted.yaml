@@ -1,0 +1,23 @@
+name: e2e
+
+on:
+  push:
+    branches: [ "mkulke/adjust-to-sev-crate-changes" ]
+
+jobs:
+  build-and-run-example:
+    runs-on: [ "self-hosted", "ubuntu-latest", "cvm" ]
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - name: Build and run example project
+      working-directory: ./az-snp-vtpm
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libtss2-dev
+        cargo run --release -p example
