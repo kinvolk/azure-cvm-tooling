@@ -5,9 +5,9 @@
 use super::certs::Vcek;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
-use sev::firmware::guest::types::AttestationReport;
 #[cfg(feature = "verifier")]
-use sev::firmware::guest::types::Signature;
+use sev::certs::snp::ecdsa::Signature;
+use sev::firmware::guest::AttestationReport;
 use std::error::Error;
 use thiserror::Error;
 
