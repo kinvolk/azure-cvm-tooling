@@ -4,84 +4,26 @@ on:
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   build-and-run-example:
-    runs-on: ubuntu-latest
-    environment: restricted
+    runs-on: [ "self-hosted", "azure-cvm", "ubuntu-2204" ]
     steps:
-    - name: Create resource suffix
-      run: >
-        echo "SUFFIX=${{ github.event.number }}-$(echo $RANDOM | md5sum | head -c6)"
-        >> "$GITHUB_ENV"
-
     - uses: actions/checkout@v3
-
-    - name: Az CLI login
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
 
-    - name: Build example project
-      working-directory: ./az-snp-vtpm
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libtss2-dev
-        cargo build --release -p example
+        sudo apt-get install -y build-essential libtss2-dev pkg-config
 
-    - name: Create SSH key pair
-      run: ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
-
-    - name: Create VM resources
+    - name: Build example project
       working-directory: ./az-snp-vtpm
-      env:
-        LOCATION: eastus
-        ASSIGN_PUBLIC_IP: 'true'
-        CVM_RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-      run: |
-        make deploy
-        public_ip=$(az network public-ip show \
-          -g "$CVM_RESOURCE_GROUP" \
-          -n "cvm-${SUFFIX}-ip" \
-          --query ipAddress \
-          -o tsv)
-        echo "PUBLIC_IP=$public_ip" >> "$GITHUB_ENV"
+      run: cargo build --release -p example
 
-    - name: Copy bin to cvm
+    - name: Run example project
       working-directory: ./az-snp-vtpm
-      run: > 
-        scp 
-        -o StrictHostKeyChecking=no
-        target/release/example
-        "azureuser@${PUBLIC_IP}:"
-
-    - name: Install dependency on CVM
-      run: >
-        ssh 
-        -o StrictHostKeyChecking=no
-        "azureuser@${PUBLIC_IP}"
-        -C "sudo apt-get update && sudo apt-get install -y libtss2-tctildr0"
-
-    - name: Execute example on CVM
-      run: > 
-        ssh
-        -o StrictHostKeyChecking=no
-        "azureuser@${PUBLIC_IP}"
-        -C "sudo ./example"
-
-    - name: Delete VM resources
-      if: always()
-      working-directory: ./az-snp-vtpm
-      env:
-        CVM_RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-      run: make delete
+      run: sudo ./target/release/example
