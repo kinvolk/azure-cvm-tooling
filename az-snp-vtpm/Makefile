@@ -2,11 +2,9 @@ CVM_RESOURCE_GROUP ?= azure-cvm-tooling-ci
 LOCATION ?= eastus
 IMAGE_ID ?= -
 SSH_PUB_KEY_PATH ?= ~/.ssh/id_rsa.pub
+SSH_PRIV_KEY ?= $(basename $(SSH_PUB_KEY_PATH) .pub)
 ADMIN_PUBLIC_KEY = $(shell cat $(SSH_PUB_KEY_PATH))
-ifeq ($(SUFFIX),)
-	SUFFIX := $(shell bash -c 'echo $$RANDOM | md5sum | head -c 6')
-endif
-VM_NAME := cvm-$(SUFFIX)
+VM_NAME ?= cvm
 ASSIGN_PUBLIC_IP ?= false
 
 .PHONY: deploy
@@ -19,13 +17,21 @@ deploy:
 		--parameters location=$(LOCATION) \
 		$(if $(IMAGE_ID:-=),--parameters imageId=$(IMAGE_ID)) \
 		--parameters adminPublicKey='$(ADMIN_PUBLIC_KEY)' \
-		--parameters assignPublicIP=$(ASSIGN_PUBLIC_IP) && \
-	echo -n "$(VM_NAME): " && \
-	az network nic show \
+		--parameters assignPublicIP=$(ASSIGN_PUBLIC_IP)
+
+.PHONY: ssh
+ssh:
+	@echo "Run the following command to ssh into the VM:"
+ifeq ($(ASSIGN_PUBLIC_IP),true)
+	@echo "ssh -i $(SSH_PRIV_KEY) azureuser@$(VM_NAME).$(LOCATION).cloudapp.azure.com"
+else
+	@PRIV_IP_ADDRESS=$$(az network nic show \
 		--resource-group $(CVM_RESOURCE_GROUP) \
 		--name $(VM_NAME)-nic \
-		--query 'ipConfigurations[0].privateIpAddress' \
-		--output tsv
+		--query 'ipConfigurations[0].privateIPAddress' \
+		--output tsv) && \
+	echo "ssh -i $(SSH_PRIV_KEY) azureuser@$${PRIV_IP_ADDRESS}"
+endif
 
 .PHONY: delete
 delete:

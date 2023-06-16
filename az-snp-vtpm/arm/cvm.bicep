@@ -26,6 +26,9 @@ resource publicIP_resource 'Microsoft.Network/publicIPAddresses@2022-07-01' = if
   location: location
   properties: {
     publicIPAllocationMethod: 'Dynamic'
+    dnsSettings: {
+      domainNameLabel: virtualMachineName
+    }
   }
 }
 

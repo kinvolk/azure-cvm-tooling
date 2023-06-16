@@ -2,19 +2,14 @@
 
 In this document you will build and deploy Key Broker Service (KBS) & Attestation Agent. The KBS will host a secret which will be released only when Attestation Agent sends a valid attestation package. In the end we verify if the secret deployed on KBS matches the secret downloaded after successful attestation. For the demo purposes we will deploy everything on the same Confidential Virtual Machine (CVM).
 
-The following instructions have been tested on a Ubuntu 22 Azure CVM. It currently requires forks of the following CoCo upstream repositories, the KBS fork will pull the proper dependencies.
-
-* cc/kbs
-* cc/attestation-service
-* cc/attestation-agent
-* cc/kbs-types
+The following instructions have been tested on a Ubuntu 22 Azure CVM.
 
 ## Deploy CVM on Azure
 
-The configuration to deploy CVM on Azure are in the directory `vtpm-snp`. Make changes as you prefer in the following environment variables:
+The configuration to deploy CVM on Azure are in the directory `az-snp-vtpm`. Make changes as you prefer in the following environment variables:
 
 ```bash
-cd vtpm-snp
+cd az-snp-vtpm
 
 export CVM_RESOURCE_GROUP="cvm-vtpm-e2e"
 export VM_NAME="cvm"
@@ -22,23 +17,20 @@ export SSH_PUB_KEY_PATH=$HOME/.ssh/id_rsa.pub
 export ASSIGN_PUBLIC_IP=true
 export VNET_NAME="cvmtest"
 export SUBNET_NAME="cvmtest"
+export LOCATION="eastus"
 ```
 
-If you are testing a custom CVM image then export the following environment variable or skip this step:
+Create the resource group:
+
+```bash
+az group create --name "${CVM_RESOURCE_GROUP}" \
+    --location "${LOCATION}"
+```
+
+[Optional] If you are testing a custom CVM image then export the following environment variable or skip this step:
 
 ```bash
 export IMAGE_ID=/subscriptions/.../resourceGroups/.../providers/Microsoft.Compute/galleries/.../images/.../versions/0.0.1
-```
-
-Create a VNET, if you want to reuse an existing VNET then just export the ID in the following environment variable:
-
-```bash
-export VNET_ID=$(az network vnet create \
-    -g "${CVM_RESOURCE_GROUP}" \
-    -n "${VNET_NAME}" \
-    --subnet-name "${SUBNET_NAME}" \
-    --query=newVNet.id \
-    -o tsv)
 ```
 
 Deploy the CVM:
@@ -47,16 +39,10 @@ Deploy the CVM:
 make deploy
 ```
 
-Fetch the public IP of the VM and SSH into the machine:
+Run the following command to SSH into the machine:
 
 ```bash
-export CVM_IP=$(az vm show \
-    -d -g "${CVM_RESOURCE_GROUP}" \
-    -n "${VM_NAME}" \
-    --query=publicIps \
-    -o tsv)
-
-ssh -i "${SSH_PUB_KEY_PATH%.pub}" azureuser@"${CVM_IP}"
+make ssh
 ```
 
 ## Install Dependencies
@@ -83,20 +69,21 @@ sudo apt install -y \
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
 
-cd $(mktemp -d)
+pushd $(mktemp -d)
 curl -LO https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz
 tar -xvzf grpcurl_1.8.7_linux_x86_64.tar.gz
 sudo mv grpcurl /usr/local/bin
+popd
 ```
 
 ## Key Broker Service (KBS)
 
-### Download KBS fork
+### Download KBS
 
 ```bash
-cd /var/tmp
+pushd /var/tmp
 mkdir kbs
-curl -fL "https://github.com/mkulke/kbs/tarball/mkulke%2Fadd-az-snp-vtpm-support" \
+curl -fL "https://github.com/confidential-containers/kbs/tarball/main" \
   | tar -xz --strip-components 1 -C kbs
 ```
 
