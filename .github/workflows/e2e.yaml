@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libtss2-dev pkg-config
+        sudo apt-get install -y build-essential libssl-dev pkg-config libtss2-dev
 
     - name: Build example project
       working-directory: ./az-snp-vtpm
