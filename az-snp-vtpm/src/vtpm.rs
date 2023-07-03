@@ -30,7 +30,7 @@ use tss_esapi::Context;
 
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
-const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 9] = [
+const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 24] = [
     PcrSlot::Slot0,
     PcrSlot::Slot1,
     PcrSlot::Slot2,
@@ -39,7 +39,22 @@ const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 9] = [
     PcrSlot::Slot5,
     PcrSlot::Slot6,
     PcrSlot::Slot7,
+    PcrSlot::Slot8,
+    PcrSlot::Slot9,
+    PcrSlot::Slot10,
+    PcrSlot::Slot11,
+    PcrSlot::Slot12,
+    PcrSlot::Slot13,
     PcrSlot::Slot14,
+    PcrSlot::Slot15,
+    PcrSlot::Slot16,
+    PcrSlot::Slot17,
+    PcrSlot::Slot18,
+    PcrSlot::Slot19,
+    PcrSlot::Slot20,
+    PcrSlot::Slot21,
+    PcrSlot::Slot22,
+    PcrSlot::Slot23,
 ];
 
 pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
