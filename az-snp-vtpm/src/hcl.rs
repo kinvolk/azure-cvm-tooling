@@ -11,6 +11,13 @@ use static_assertions::const_assert;
 use std::convert::TryFrom;
 use thiserror::Error;
 
+const HCL_AKPUB_KEY_ID: &str = "HCLAkPub";
+
+#[derive(Deserialize, Debug)]
+struct VarDataKeys {
+    keys: Vec<jsonwebkey::JsonWebKey>,
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum IgvmHashType {
@@ -68,27 +75,6 @@ pub struct HclAttestationReport {
 }
 
 const_assert!(std::mem::size_of::<HclAttestationHeader>() == 32);
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct VmConfiguration {
-    #[serde(rename = "console-enabled")]
-    pub console_enabled: bool,
-    #[serde(rename = "current-time")]
-    pub current_time: u32,
-    #[serde(rename = "secure-boot")]
-    pub secure_boot: bool,
-    #[serde(rename = "tpm-enabled")]
-    pub tpm_enabled: bool,
-    #[serde(rename = "vmUniqueId")]
-    pub vm_unique_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RuntimeData {
-    pub keys: [jsonwebkey::JsonWebKey; 1],
-    #[serde(rename = "vm-configuration")]
-    pub vm_configuration: VmConfiguration,
-}
 
 impl HclAttestationReport {
     pub fn snp_report(&self) -> &AttestationReport {
@@ -149,6 +135,8 @@ impl TryFrom<&[u8]> for HclData {
 
 #[derive(Error, Debug)]
 pub enum ParseError {
+    #[error("missing attestation key in runtime data")]
+    MissingAkPub,
     #[error("json parse error")]
     Report(#[from] serde_json::Error),
     #[cfg(feature = "verifier")]
@@ -156,21 +144,17 @@ pub enum ParseError {
     OpenSSL(#[from] openssl::error::ErrorStack),
 }
 
-impl TryFrom<&VarData> for RuntimeData {
-    type Error = ParseError;
-
-    fn try_from(var_data: &VarData) -> Result<Self, Self::Error> {
-        let runtime_data: Self = serde_json::from_slice(&var_data.0)?;
-        Ok(runtime_data)
-    }
-}
-
 #[cfg(feature = "verifier")]
-impl RuntimeData {
-    /// Parse the the vTPM public Attestation Key PEM
-    pub fn get_attestation_key(&self) -> Result<PKey<Public>, ParseError> {
-        let key = self.keys[0].key.as_ref();
-        let pubkey = key.to_pem();
+impl VarData {
+    pub fn ak_pub(&self) -> Result<PKey<Public>, ParseError> {
+        let VarDataKeys { keys } = serde_json::from_slice(&self.0)?;
+
+        let ak_pub = keys
+            .into_iter()
+            .find(|key| key.key_id.as_ref().is_some_and(|id| id == HCL_AKPUB_KEY_ID))
+            .ok_or(ParseError::MissingAkPub)?;
+
+        let pubkey = ak_pub.key.to_pem();
         let pubkey = PKey::public_key_from_pem(pubkey.as_bytes())?;
         Ok(pubkey)
     }
@@ -201,9 +185,15 @@ mod tests {
     fn test_hcl_report() {
         let bytes: &[u8] = include_bytes!("../test/hcl-report.bin");
         let HclData(_, ref var_data) = bytes.try_into().unwrap();
-        let runtime_data: RuntimeData = var_data.try_into().unwrap();
-        println!("{:?}", runtime_data);
-        let pubkey = runtime_data.get_attestation_key().unwrap();
+        let pubkey = var_data.ak_pub().unwrap();
         assert!(pubkey.size() == 256);
+    }
+
+    #[test]
+    fn test_var_data() {
+        // this is a var data sample containing ak_pub and ek_pub
+        let bytes = include_bytes!("../test/var-data.bin");
+        let var_data = VarData(bytes.to_vec());
+        let _key = var_data.ak_pub().unwrap();
     }
 }
