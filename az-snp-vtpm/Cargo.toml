@@ -1,6 +1,6 @@
 [package]
 name = "az-snp-vtpm"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"

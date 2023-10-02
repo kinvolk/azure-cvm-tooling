@@ -49,8 +49,7 @@ impl Verifier {
         let var_data = hcl_data.var_data();
         hcl_data.report().verify_report_data(var_data)?;
 
-        let runtime_data: hcl::RuntimeData = var_data.try_into()?;
-        let ak_pub = runtime_data.get_attestation_key()?;
+        let ak_pub = var_data.ak_pub()?;
         ak_pub.verify_quote(&evidence.quote, nonce)?;
 
         Ok(())
