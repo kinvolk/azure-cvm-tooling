@@ -1,4 +1,10 @@
-# vTPM based SEV-SNP attestation for Azure Confidential VMs
+# az-snp-vtpm
+
+[![Rust](https://github.com/kinvolk/azure-cvm-tooling/actions/workflows/rust.yml/badge.svg)](https://github.com/kinvolk/azure-cvm-tooling/actions/workflows/rust.yml)
+[![Crate](https://img.shields.io/crates/v/az-snp-vtpm.svg)](https://crates.io/crates/az-snp-vtpm)
+[![Docs](https://docs.rs/rand/badge.svg)](https://docs.rs/az-snp-vtpm)
+
+**vTPM based SEV-SNP attestation for Azure Confidential VMs**
 
 This library enables guest attestation flows for [SEV-SNP CVMs on Azure](https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview). Please refer to the documentation in [this repository](https://github.com/Azure/confidential-computing-cvm-guest-attestation) for details on the attestation procedure.
 
