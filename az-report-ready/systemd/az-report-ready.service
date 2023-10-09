@@ -1,0 +1,13 @@
+[Unit]
+Description=Report VM as ready
+After=network.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/az-report-ready
+ExecStartPost=/usr/bin/systemctl disable az-report-ready.service
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
