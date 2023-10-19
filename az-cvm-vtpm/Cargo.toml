@@ -3,5 +3,6 @@ members = [
 	"az-snp-vtpm",
 	"az-tdx-vtpm",
 	"az-snp-vtpm/example",
+	"detect-cvm-type",
 ]
 resolver = "2"
