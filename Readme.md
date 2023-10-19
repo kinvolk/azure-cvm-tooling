@@ -2,6 +2,6 @@
 
 Assorted tools and libraries to use with [Azure CVMs](https://azure.microsoft.com/en-us/solutions/confidential-compute/).
 
-# vTPM-SNP
+## az-cvm-vtpm
 
-Library and CLI to integrate with vTPM on SEV-SNP enabled machines.
+Attestation for Azure Confidential Virtual Machines

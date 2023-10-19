@@ -11,14 +11,16 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: az-cvm-vtpm
 
     steps:
+    - uses: actions/checkout@v3
+
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install -y libtss2-dev
-
-    - uses: actions/checkout@v3
 
     - uses: actions-rs/toolchain@v1
       with:
@@ -34,24 +36,18 @@ jobs:
 
     - name: Build
       run: cargo build --verbose --all
-      working-directory: az-snp-vtpm
 
     - name: Check verifier-only
       run: cargo check --verbose --no-default-features --features=verifier
-      working-directory: az-snp-vtpm
 
     - name: Check attester-only
       run: cargo check --verbose --no-default-features --features=attester
-      working-directory: az-snp-vtpm
 
     - name: Run tests
       run: cargo test --verbose --all
-      working-directory: az-snp-vtpm
 
     - name: Format
       run: cargo fmt --all -- --check
-      working-directory: az-snp-vtpm
 
     - name: Lint
       run: cargo clippy --all-targets --all-features --all -- -D warnings
-      working-directory: az-snp-vtpm

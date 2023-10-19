@@ -1,0 +1,7 @@
+[workspace]
+members = [
+	"az-snp-vtpm",
+	"az-tdx-vtpm",
+	"az-snp-vtpm/example",
+]
+resolver = "2"

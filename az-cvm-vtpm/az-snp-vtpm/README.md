@@ -1,10 +1,8 @@
-# az-snp-vtpm
-
 [![Rust](https://github.com/kinvolk/azure-cvm-tooling/actions/workflows/rust.yml/badge.svg)](https://github.com/kinvolk/azure-cvm-tooling/actions/workflows/rust.yml)
 [![Crate](https://img.shields.io/crates/v/az-snp-vtpm.svg)](https://crates.io/crates/az-snp-vtpm)
 [![Docs](https://docs.rs/rand/badge.svg)](https://docs.rs/az-snp-vtpm)
 
-**vTPM based SEV-SNP attestation for Azure Confidential VMs**
+# az-snp-vtpm
 
 This library enables guest attestation flows for [SEV-SNP CVMs on Azure](https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview). Please refer to the documentation in [this repository](https://github.com/Azure/confidential-computing-cvm-guest-attestation) for details on the attestation procedure.
 
@@ -20,8 +18,8 @@ make deploy
 ## Build & Install
 
 ```bash
-cargo b --release
-scp target/release/snp-vtpm azureuser@$CONFIDENTIAL_VM:
+cargo b --release -p az-snp-vtpm
+scp ../target/release/snp-vtpm azureuser@$CONFIDENTIAL_VM:
 ```
 
 ## Run Binary
@@ -37,7 +35,7 @@ sudo ./snp-vtpm -p
 There is a project in the `./example` folder depicting how the crate can be leveraged in a Remote Attestation flow. **Note:** the code is merely illustrative and doesn't feature exhaustive validation, which would be required in a production scenario.
 
 ```bash
-cargo b -p example
+cargo b -p snp-example
 ```
 
 ## SEV-SNP Report & vTPM 
@@ -56,12 +54,12 @@ The vTPM is linked to the SEV-SNP report via the vTPM Attestation Key (AK). The 
   │ └──────────────────────┘  │ │ └────────────────────┘ │   │ │
   │         ┌──────────────┐  │ └──────────────────────┬─┘  ─┘ │
   │         │ vTPM Quote   │  │ ┌────────────────────┐ │       │
-  │         │              │  │ │ HCL Report         │ │       │ 
+  │         │              │  │ │ HCL Report         │ │       │
 signs ┌─  ┌─┴────────────┐ │  │ │                    │ │     sha256
   │   │   │ Message      │ │  │ │ ┌────────────────┐ │ │       │
   │   │   │              │ │  │ │ │ SEV-SNP Report │ │ │       │
   │   │   │ ┌──────────┐ │ │  │ │ │                │ │ │       │
-  │   │   │ │ PCR0     │ │ │  │ │ │ ┌──────────────┴─┴─┴─┐     │   
+  │   │   │ │ PCR0     │ │ │  │ │ │ ┌──────────────┴─┴─┴─┐     │
   │   │   │ └──────────┘ │ │  │ │ │ │ Report Data        │ ◄───┘
   │   │   │   ...        │ │  │ │ │ └──────────────┬─┬─┬─┘
   │   │   │ ┌──────────┐ │ │  │ │ └────────────────┘ │ │
