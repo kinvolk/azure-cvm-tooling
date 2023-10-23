@@ -29,13 +29,10 @@ sev = "1.2.0"
 sha2 = "0.10.6"
 static_assertions = "^1.1.0"
 thiserror = "1.0.38"
-tss-esapi = "7.2"
+tss-esapi = "7.4"
 ureq = { version = "2.6.2", default-features = false, features = ["json"] }
 
 [features]
 default = ["attester", "verifier"]
 attester = []
 verifier = ["openssl", "sev/openssl", "ureq/tls"]
-
-[workspace]
-members = ["example"]
