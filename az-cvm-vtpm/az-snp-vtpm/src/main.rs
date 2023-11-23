@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use az_snp_vtpm::hcl::HclData;
-use az_snp_vtpm::{amd_kds, certs, imds, report, vtpm};
+use az_cvm_vtpm::hcl::HclReport;
+use az_cvm_vtpm::vtpm;
+use az_snp_vtpm::{amd_kds, certs, imds, report};
 use clap::Parser;
-use report::Validateable;
+use report::{AttestationReport, Validateable};
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
@@ -48,8 +49,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Some(file_name) => read_file(&file_name)?,
                 None => vtpm::get_report()?,
             };
-            let hcl_data: HclData = bytes.as_slice().try_into()?;
-            let snp_report = hcl_data.report().snp_report();
+            let hcl_report = HclReport::new(bytes)?;
+            let snp_report: AttestationReport = hcl_report.try_into()?;
 
             let (vcek, cert_chain) = if imds {
                 let pem_certs = imds::get_certs()?;
@@ -57,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let cert_chain = certs::build_cert_chain(&pem_certs.amd_chain)?;
                 (vcek, cert_chain)
             } else {
-                let vcek = amd_kds::get_vcek(snp_report)?;
+                let vcek = amd_kds::get_vcek(&snp_report)?;
                 let cert_chain = amd_kds::get_cert_chain()?;
                 (vcek, cert_chain)
             };

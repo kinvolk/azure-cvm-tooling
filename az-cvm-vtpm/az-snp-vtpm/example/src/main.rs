@@ -1,13 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use az_snp_vtpm::amd_kds;
 use az_snp_vtpm::certs::Vcek;
-use az_snp_vtpm::hcl;
-use az_snp_vtpm::imds;
-use az_snp_vtpm::report::Validateable;
-use az_snp_vtpm::vtpm;
-use az_snp_vtpm::vtpm::VerifyVTpmQuote;
+use az_snp_vtpm::hcl::HclReport;
+use az_snp_vtpm::report::{AttestationReport, Validateable};
+use az_snp_vtpm::{amd_kds, imds, vtpm};
+use openssl::pkey::PKey;
 use std::error::Error;
 
 struct Evidence {
@@ -36,8 +34,12 @@ struct Verifier;
 
 impl Verifier {
     fn verify(nonce: &[u8], evidence: &Evidence) -> Result<(), Box<dyn Error>> {
-        let hcl_data: hcl::HclData = evidence.report[..].try_into()?;
-        let snp_report = hcl_data.report().snp_report();
+        let Evidence { quote, report, .. } = evidence;
+
+        let hcl_report = HclReport::new(report.clone())?;
+        let var_data_hash = hcl_report.var_data_sha256();
+        let ak_pub = hcl_report.ak_pub()?;
+        let snp_report: AttestationReport = hcl_report.try_into()?;
 
         let cert_chain = amd_kds::get_cert_chain()?;
         let vcek = Vcek::from_pem(&evidence.certs.vcek)?;
@@ -46,11 +48,12 @@ impl Verifier {
         vcek.validate(&cert_chain)?;
         snp_report.validate(&vcek)?;
 
-        let var_data = hcl_data.var_data();
-        hcl_data.report().verify_report_data(var_data)?;
-
-        let ak_pub = var_data.ak_pub()?;
-        ak_pub.verify_quote(&evidence.quote, nonce)?;
+        if var_data_hash != snp_report.report_data[..32] {
+            return Err("var_data_hash mismatch".into());
+        }
+        let der = ak_pub.key.try_to_der()?;
+        let pub_key = PKey::public_key_from_der(&der)?;
+        quote.verify(&pub_key, nonce)?;
 
         Ok(())
     }

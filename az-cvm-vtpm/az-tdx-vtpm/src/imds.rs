@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use az_cvm_vtpm::tdx::TdReport;
 use serde::Deserialize;
 use thiserror::Error;
+use zerocopy::AsBytes;
 
 const IMDS_QUOTE_URL: &str = "http://169.254.169.254/acc/tdquote";
 
@@ -16,12 +18,12 @@ pub enum ImdsError {
     IoError(#[from] std::io::Error),
 }
 
-pub struct ReportBody {
+struct ReportBody {
     report: String,
 }
 
 impl ReportBody {
-    pub fn new(report_bytes: &[u8]) -> Self {
+    fn new(report_bytes: &[u8]) -> Self {
         let report = base64_url::encode(report_bytes);
         Self { report }
     }
@@ -32,7 +34,11 @@ struct QuoteResponse {
     quote: String,
 }
 
-pub fn get_td_quote(report_body: ReportBody) -> Result<Vec<u8>, ImdsError> {
+/// Retrieves a TDX quote from the Azure Instance Metadata Service (IMDS) using a provided TD
+/// report.
+pub fn get_td_quote(td_report: &TdReport) -> Result<Vec<u8>, ImdsError> {
+    let bytes = td_report.as_bytes();
+    let report_body = ReportBody::new(bytes);
     let response: QuoteResponse = ureq::post(IMDS_QUOTE_URL)
         .send_json(ureq::json!({
             "report": report_body.report,

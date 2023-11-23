@@ -5,20 +5,19 @@
 //!
 //!  # SNP Report Validation
 //!
-//!  The following code will retrieve an SNP report from the vTPM device, parse it, and validate it against the AMD certificate chain. Finally it will verify that a hash of a raw HCL report's [RuntimeData](hcl::RuntimeData) is equal to the `report_data` field in an embedded [Attestation Report](sev::firmware::guest::types::AttestationReport) structure.
+//!  The following code will retrieve an SNP report from the vTPM device, parse it, and validate it against the AMD certificate chain. Finally it will verify that a hash of a raw HCL report's Variable Data is equal to the `report_data` field in an embedded [Attestation Report](sev::firmware::guest::AttestationReport) structure.
 //!
 //!  #
 //!  ```no_run
-//!  use az_snp_vtpm::vtpm::get_report;
-//!  use az_snp_vtpm::amd_kds;
-//!  use az_snp_vtpm::report::Validateable;
-//!  use az_snp_vtpm::hcl::{self, HclData};
+//!  use az_snp_vtpm::{amd_kds, hcl, vtpm};
+//!  use az_snp_vtpm::report::{AttestationReport, Validateable};
 //!  use std::error::Error;
 //!
 //!  fn main() -> Result<(), Box<dyn Error>> {
-//!    let bytes = get_report()?;
-//!    let hcl_data: HclData = bytes[..].try_into()?;
-//!    let snp_report = hcl_data.report().snp_report();
+//!    let bytes = vtpm::get_report()?;
+//!    let hcl_report = hcl::HclReport::new(bytes)?;
+//!    let var_data_hash = hcl_report.var_data_sha256();
+//!    let snp_report: AttestationReport = hcl_report.try_into()?;
 //!
 //!    let vcek = amd_kds::get_vcek(&snp_report)?;
 //!    let cert_chain = amd_kds::get_cert_chain()?;
@@ -27,13 +26,15 @@
 //!    vcek.validate(&cert_chain)?;
 //!    snp_report.validate(&vcek)?;
 //!
-//!    let var_data = hcl_data.var_data();
-//!    hcl_data.report().verify_report_data(&var_data)?;
+//!    if var_data_hash != snp_report.report_data[..32] {
+//!      return Err("var_data_hash mismatch".into());
+//!    }
 //!
 //!    Ok(())
 //!  }
 //!  ```
 
+pub use az_cvm_vtpm::{hcl, vtpm};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -44,12 +45,22 @@ pub enum HttpError {
     Io(#[from] std::io::Error),
 }
 
+/// Determines if the current VM is an SEV-SNP CVM.
+/// Returns `Ok(true)` if the VM is an SEV-SNP CVM, `Ok(false)` if it is not,
+/// and `Err` if an error occurs.
+pub fn is_snp_cvm() -> Result<bool, vtpm::ReportError> {
+    let bytes = vtpm::get_report()?;
+    let Ok(hcl_report) = hcl::HclReport::new(bytes) else {
+        return Ok(false);
+    };
+    let is_snp = hcl_report.report_type() == hcl::ReportType::Snp;
+    Ok(is_snp)
+}
+
 #[cfg(feature = "verifier")]
 pub mod amd_kds;
 #[cfg(feature = "verifier")]
 pub mod certs;
-pub mod hcl;
 #[cfg(feature = "attester")]
 pub mod imds;
 pub mod report;
-pub mod vtpm;

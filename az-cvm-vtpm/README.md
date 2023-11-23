@@ -8,4 +8,4 @@ Attestation Library for Azure AMD SEV-SNP Confidential Virtual Machines.
 
 ## az-tdx-vtpm
 
-Attestation Library for Azure Intel TDX Confidential Virtual Machines (Limited Preview).
+Attestation Library for Azure Intel TDX Confidential Virtual Machines.

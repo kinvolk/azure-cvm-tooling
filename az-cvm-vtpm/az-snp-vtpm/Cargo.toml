@@ -1,6 +1,6 @@
 [package]
 name = "az-snp-vtpm"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"
@@ -17,22 +17,16 @@ path = "src/main.rs"
 required-features = ["attester", "verifier"]
 
 [dependencies]
-bincode = "1"
-clap = { version = "4", features = ["derive"] }
-jsonwebkey = { version = "0.3.5", features = ["pkcs-convert"] }
-memoffset = "0.8.0"
-openssl = { version = "0.10", optional = true }
-rsa = { version = "0.8.2", features = ["pkcs5", "sha2"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sev = "1.2.0"
-sha2 = "0.10.6"
-static_assertions = "^1.1.0"
-thiserror = "1.0.38"
-tss-esapi = "7.4"
-ureq = { version = "2.6.2", default-features = false, features = ["json"] }
+az-cvm-vtpm = { path = "..", version = "0.4.0" }
+bincode.workspace = true
+clap.workspace = true
+openssl = { workspace = true, optional = true }
+serde.workspace = true
+sev.workspace = true
+thiserror.workspace = true
+ureq.workspace = true
 
 [features]
 default = ["attester", "verifier"]
 attester = []
-verifier = ["openssl", "sev/openssl", "ureq/tls"]
+verifier = ["az-cvm-vtpm/openssl", "openssl", "ureq/tls"]

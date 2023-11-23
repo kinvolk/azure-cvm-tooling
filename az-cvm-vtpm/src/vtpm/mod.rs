@@ -1,12 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#[cfg(feature = "verifier")]
-use openssl::hash::MessageDigest;
-#[cfg(feature = "verifier")]
-use openssl::pkey::{PKey, Public};
-#[cfg(feature = "verifier")]
-use openssl::sign::Verifier;
 use rsa::{BigUint, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -18,15 +12,13 @@ use tss_esapi::interface_types::resource_handles::NvAuth;
 use tss_esapi::interface_types::session_handles::AuthSession;
 use tss_esapi::structures::pcr_selection_list::PcrSelectionListBuilder;
 use tss_esapi::structures::pcr_slot::PcrSlot;
-#[cfg(feature = "verifier")]
-use tss_esapi::structures::Attest;
-use tss_esapi::structures::SignatureScheme;
-use tss_esapi::structures::{AttestInfo, Data, Signature};
+use tss_esapi::structures::{AttestInfo, Data, Signature, SignatureScheme};
 use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
 use tss_esapi::traits::Marshall;
-#[cfg(feature = "verifier")]
-use tss_esapi::traits::UnMarshall;
 use tss_esapi::Context;
+
+#[cfg(feature = "verifier")]
+mod verify;
 
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
@@ -57,7 +49,14 @@ const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 24] = [
     PcrSlot::Slot23,
 ];
 
-pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
+#[derive(Error, Debug)]
+pub enum ReportError {
+    #[error("tpm error")]
+    Tpm(#[from] tss_esapi::Error),
+}
+
+/// Get a HCL report from an nvindex
+pub fn get_report() -> Result<Vec<u8>, ReportError> {
     use tss_esapi::handles::NvIndexTpmHandle;
     let nv_index = NvIndexTpmHandle::new(VTPM_HCL_REPORT_NV_INDEX)?;
 
@@ -66,7 +65,8 @@ pub fn get_report() -> Result<Vec<u8>, tss_esapi::Error> {
     let auth_session = AuthSession::Password;
     context.set_sessions((Some(auth_session), None, None));
 
-    nv::read_full(&mut context, NvAuth::Owner, nv_index)
+    let report = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
+    Ok(report)
 }
 
 #[derive(Error, Debug)]
@@ -79,6 +79,7 @@ pub enum AKPubError {
     OpenSsl(#[from] rsa::errors::Error),
 }
 
+/// Get the AK pub of the vTPM
 pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
     let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
     let mut context = Context::new(conf)?;
@@ -118,6 +119,7 @@ pub struct Quote {
     pub message: Vec<u8>,
 }
 
+/// Get a signed vTPM quote
 pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     if data.len() > Data::MAX_SIZE {
         return Err(QuoteError::DataTooLarge);
@@ -164,73 +166,4 @@ pub enum VerifyError {
     NonceMismatch,
     #[error("quote is not signed by the public key")]
     SignatureMismatch,
-}
-
-#[cfg(feature = "verifier")]
-pub trait VerifyVTpmQuote {
-    fn verify_quote(&self, quote: &Quote, nonce: &[u8]) -> Result<(), VerifyError>;
-}
-
-#[cfg(feature = "verifier")]
-impl VerifyVTpmQuote for PKey<Public> {
-    fn verify_quote(&self, quote: &Quote, nonce: &[u8]) -> Result<(), VerifyError> {
-        let mut verifier = Verifier::new(MessageDigest::sha256(), self)?;
-        verifier.update(&quote.message)?;
-        let is_verified = verifier.verify(&quote.signature)?;
-        if !is_verified {
-            return Err(VerifyError::SignatureMismatch);
-        }
-
-        let attest = Attest::unmarshall(&quote.message)?;
-        if nonce != attest.extra_data().as_slice() {
-            return Err(VerifyError::NonceMismatch);
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(feature = "verifier")]
-    #[test]
-    fn test_quote_validation() {
-        // Can be retrieved by `get_ak_pub()` or via tpm2-tools:
-        // `tpm2_readpublic -c 0x81000003 -f pem -o akpub.pem`
-
-        let pem = include_bytes!("../test/akpub.pem");
-        let pkey = PKey::public_key_from_pem(pem).unwrap();
-
-        // Can be retrieved by `get_quote()` or via tpm2-tools:
-        // `tpm2_quote -c 0x81000003 -l sha256:5,8 -q cafe -m quote_msg -s quote_sig`
-        let message = include_bytes!("../test/quote_msg").to_vec();
-        let signature = include_bytes!("../test/quote_sig").to_vec();
-        let quote = Quote { signature, message };
-
-        // proper nonce in message
-        let nonce = vec![1, 2, 3];
-        let result = pkey.verify_quote(&quote, &nonce);
-        assert!(result.is_ok(), "Quote verification should not fail");
-
-        // wrong signature
-        let mut wrong_quote = quote.clone();
-        wrong_quote.signature.reverse();
-        let result = pkey.verify_quote(&wrong_quote, &nonce);
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, VerifyError::SignatureMismatch),
-            "Expected signature mismatch"
-        );
-
-        // improper nonce
-        let nonce = vec![1, 2, 3, 4];
-        let result = pkey.verify_quote(&quote, &nonce);
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, VerifyError::NonceMismatch),
-            "Expected nonce verification error"
-        );
-    }
 }
