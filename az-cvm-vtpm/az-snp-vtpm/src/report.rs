@@ -3,12 +3,13 @@
 
 #[cfg(feature = "verifier")]
 use super::certs::Vcek;
+use az_cvm_vtpm::hcl::{self, HclReport};
+use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
 #[cfg(feature = "verifier")]
 use sev::certs::snp::ecdsa::Signature;
-use sev::firmware::guest::AttestationReport;
-use std::error::Error;
+pub use sev::firmware::guest::AttestationReport;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -53,9 +54,19 @@ impl Validateable for AttestationReport {
     }
 }
 
-pub fn parse(bytes: &[u8]) -> Result<AttestationReport, Box<dyn Error>> {
-    let decoded: AttestationReport = bincode::deserialize(bytes)?;
-    Ok(decoded)
+#[derive(Error, Debug)]
+pub enum ReportError {
+    #[error("deserialization error")]
+    Parse(#[from] Box<bincode::ErrorKind>),
+    #[error("vTPM error")]
+    Vtpm(#[from] vtpm::ReportError),
+    #[error("HCL error")]
+    Hcl(#[from] hcl::HclError),
+}
+
+pub fn parse(bytes: &[u8]) -> Result<AttestationReport, ReportError> {
+    let snp_report = bincode::deserialize::<AttestationReport>(bytes)?;
+    Ok(snp_report)
 }
 
 #[cfg(feature = "verifier")]
@@ -70,4 +81,27 @@ fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, Box<bincode::E
     let bytes = bincode::serialize(report)?;
     let report_bytes_without_sig = &bytes[0..(report_len - signature_len)];
     Ok(report_bytes_without_sig.to_vec())
+}
+
+/// Fetch TdReport from vTPM and parse it
+pub fn get_report() -> Result<AttestationReport, ReportError> {
+    let bytes = vtpm::get_report()?;
+    let hcl_report = HclReport::new(bytes)?;
+    let snp_report = hcl_report.try_into()?;
+    Ok(snp_report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hcl::HclReport;
+
+    #[test]
+    fn test_report_data_hash() {
+        let bytes: &[u8] = include_bytes!("../../test/hcl-report-snp.bin");
+        let hcl_report = HclReport::new(bytes.to_vec()).unwrap();
+        let var_data_hash = hcl_report.var_data_sha256();
+        let snp_report: AttestationReport = hcl_report.try_into().unwrap();
+        assert!(var_data_hash == snp_report.report_data[..32]);
+    }
 }

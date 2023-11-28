@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_validate_certificates() {
-        let bytes = include_bytes!("../test/certs.pem");
+        let bytes = include_bytes!("../../test/certs.pem");
         let certs = X509::stack_from_pem(bytes).unwrap();
         let (vcek, ask, ark) = (certs[0].clone(), certs[1].clone(), certs[2].clone());
         let vcek = Vcek(vcek);

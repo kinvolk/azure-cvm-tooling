@@ -1,21 +1,36 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use crate::tdx::TdxVmReport;
+use crate::tdx::TdReport;
 use jsonwebkey::JsonWebKey;
 use memoffset::offset_of;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use sev::firmware::guest::AttestationReport as SnpVmReport;
+use sev::firmware::guest::AttestationReport as SnpReport;
 use sha2::{Digest, Sha256};
-use std::mem;
+use std::convert::TryFrom;
+use std::mem::size_of;
+use std::ops::Range;
 use thiserror::Error;
 
 const HCL_AKPUB_KEY_ID: &str = "HCLAkPub";
-const MAX_REPORT_SIZE: usize = mem::size_of::<SnpVmReport>();
-const MIN_REPORT_SIZE: usize = mem::size_of::<TdxVmReport>();
+const TD_REPORT_SIZE: usize = size_of::<TdReport>();
+const SNP_REPORT_SIZE: usize = size_of::<SnpReport>();
+const fn max(a: usize, b: usize) -> usize {
+    if a > b {
+        return a;
+    }
+    b
+}
+const MAX_REPORT_SIZE: usize = max(SNP_REPORT_SIZE, TD_REPORT_SIZE);
 const SNP_REPORT_TYPE: u32 = 2;
 const TDX_REPORT_TYPE: u32 = 4;
+const HW_REPORT_OFFSET: usize = offset_of!(AttestationReport, hw_report);
+const fn report_range(report_size: usize) -> Range<usize> {
+    HW_REPORT_OFFSET..(HW_REPORT_OFFSET + report_size)
+}
+const TD_REPORT_RANGE: Range<usize> = report_range(TD_REPORT_SIZE);
+const SNP_REPORT_RANGE: Range<usize> = report_range(SNP_REPORT_SIZE);
 
 #[derive(Error, Debug)]
 pub enum HclError {
@@ -67,17 +82,10 @@ struct AttestationHeader {
 
 #[repr(C)]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-struct HwReport {
-    tdx_vm_report: TdxVmReport,
-    #[serde(with = "BigArray")]
-    _padding: [u8; MAX_REPORT_SIZE - MIN_REPORT_SIZE],
-}
-
-#[repr(C)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 struct AttestationReport {
     header: AttestationHeader,
-    hw_report: HwReport,
+    #[serde(with = "BigArray")]
+    hw_report: [u8; MAX_REPORT_SIZE],
     hcl_data: IgvmRequestData,
 }
 
@@ -93,7 +101,13 @@ pub enum ReportType {
     Snp,
 }
 
+pub enum HwReport {
+    Tdx(TdReport),
+    Snp(SnpReport),
+}
+
 impl HclReport {
+    /// Parse a HCL report from a byte slice.
     pub fn new(bytes: Vec<u8>) -> Result<Self, HclError> {
         let attestation_report: AttestationReport = bincode::deserialize(&bytes)?;
         let report_type = match attestation_report.hcl_data.report_type {
@@ -110,16 +124,19 @@ impl HclReport {
         Ok(report)
     }
 
+    /// Get the type of the nested hardware report
     pub fn report_type(&self) -> ReportType {
         self.report_type
     }
 
-    pub fn tdx_report_slice(&self) -> &[u8] {
-        let tdx_report_offset = offset_of!(AttestationReport, hw_report);
-        let tdx_report_end = tdx_report_offset + mem::size_of::<TdxVmReport>();
-        &self.bytes[tdx_report_offset..tdx_report_end]
+    fn report_slice(&self) -> &[u8] {
+        match self.report_type {
+            ReportType::Tdx => self.bytes[TD_REPORT_RANGE].as_ref(),
+            ReportType::Snp => self.bytes[SNP_REPORT_RANGE].as_ref(),
+        }
     }
 
+    /// Get the SHA256 hash of the VarData section
     pub fn var_data_sha256(&self) -> [u8; 32] {
         if self.attestation_report.hcl_data.report_data_hash_type != IgvmHashType::Sha256 {
             unimplemented!(
@@ -133,6 +150,7 @@ impl HclReport {
         hash.into()
     }
 
+    /// Get the slice of the VarData section
     fn var_data_slice(&self) -> &[u8] {
         let var_data_offset =
             offset_of!(AttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
@@ -141,6 +159,7 @@ impl HclReport {
         &self.bytes[var_data_offset..var_data_end]
     }
 
+    /// Get the vTPM's AKpub from the VarData section
     pub fn ak_pub(&self) -> Result<JsonWebKey, HclError> {
         let VarDataKeys { keys } = serde_json::from_slice(self.var_data_slice())?;
         let ak_pub = keys
@@ -156,13 +175,59 @@ impl HclReport {
     }
 }
 
+impl TryFrom<&HclReport> for TdReport {
+    type Error = HclError;
+
+    fn try_from(hcl_report: &HclReport) -> Result<Self, Self::Error> {
+        if hcl_report.report_type != ReportType::Tdx {
+            return Err(HclError::InvalidReportType);
+        }
+        let bytes = hcl_report.report_slice();
+        let td_report = bincode::deserialize::<TdReport>(bytes)?;
+        Ok(td_report)
+    }
+}
+
+impl TryFrom<HclReport> for TdReport {
+    type Error = HclError;
+
+    fn try_from(hcl_report: HclReport) -> Result<Self, Self::Error> {
+        (&hcl_report).try_into()
+    }
+}
+
+impl TryFrom<&HclReport> for SnpReport {
+    type Error = HclError;
+
+    fn try_from(hcl_report: &HclReport) -> Result<Self, Self::Error> {
+        if hcl_report.report_type != ReportType::Snp {
+            return Err(HclError::InvalidReportType);
+        }
+        let bytes = hcl_report.report_slice();
+        let snp_report = bincode::deserialize::<SnpReport>(bytes)?;
+        Ok(snp_report)
+    }
+}
+
+impl TryFrom<HclReport> for SnpReport {
+    type Error = HclError;
+
+    fn try_from(hcl_report: HclReport) -> Result<Self, Self::Error> {
+        (&hcl_report).try_into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn parse_hcl_report() {
-        let bytes: &[u8] = include_bytes!("../test/hcl_report.bin");
+        let bytes: &[u8] = include_bytes!("../../test/hcl-report-snp.bin");
+        let hcl_report = HclReport::new(bytes.to_vec()).unwrap();
+        let _ = hcl_report.ak_pub().unwrap();
+
+        let bytes: &[u8] = include_bytes!("../../test/hcl-report-tdx.bin");
         let hcl_report = HclReport::new(bytes.to_vec()).unwrap();
         let _ = hcl_report.ak_pub().unwrap();
     }
