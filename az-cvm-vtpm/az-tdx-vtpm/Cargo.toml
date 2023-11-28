@@ -2,8 +2,11 @@
 name = "az-tdx-vtpm"
 version = "0.4.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/kinvolk/azure-cvm-tooling/"
+license = "MIT"
+keywords = ["azure", "tpm", "tdx"]
+categories = ["cryptography", "virtualization"]
+description = "vTPM based TDX attestation for Azure Confidential VMs"
 
 [lib]
 path = "src/lib.rs"
