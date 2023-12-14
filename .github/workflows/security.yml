@@ -1,0 +1,24 @@
+name: Security audit
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: '0 0 * * *'
+  push:
+    paths: 
+    - '**/Cargo.toml'
+    - '**/Cargo.lock'
+
+jobs:
+  az-cvm-vtpm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # https://github.com/actions/checkout/issues/1430
+      - name: Move az-cvm-vtpm/* to root
+        run: mv az-cvm-vtpm/* .
+
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
