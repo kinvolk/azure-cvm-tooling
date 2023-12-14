@@ -12,9 +12,9 @@ use tss_esapi::interface_types::resource_handles::NvAuth;
 use tss_esapi::interface_types::session_handles::AuthSession;
 use tss_esapi::structures::pcr_selection_list::PcrSelectionListBuilder;
 use tss_esapi::structures::pcr_slot::PcrSlot;
-use tss_esapi::structures::{AttestInfo, Data, Signature, SignatureScheme};
+use tss_esapi::structures::{Attest, AttestInfo, Data, Signature, SignatureScheme};
 use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
-use tss_esapi::traits::Marshall;
+use tss_esapi::traits::{Marshall, UnMarshall};
 use tss_esapi::Context;
 
 #[cfg(feature = "verifier")]
@@ -119,7 +119,20 @@ pub struct Quote {
     pub message: Vec<u8>,
 }
 
-/// Get a signed vTPM quote
+impl Quote {
+    /// Extract nonce from a Quote
+    pub fn nonce(&self) -> Result<Vec<u8>, QuoteError> {
+        let attest = Attest::unmarshall(&self.message)?;
+        let nonce = attest.extra_data().to_vec();
+        Ok(nonce)
+    }
+}
+
+/// Get a signed vTPM Quote
+///
+/// # Arguments
+///
+/// * `data` - A byte slice to use as nonce
 pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     if data.len() > Data::MAX_SIZE {
         return Err(QuoteError::DataTooLarge);

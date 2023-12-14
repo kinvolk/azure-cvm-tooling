@@ -1,13 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use super::Quote;
+use super::{Quote, QuoteError};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Public};
 use openssl::sign::Verifier;
 use thiserror::Error;
-use tss_esapi::structures::Attest;
-use tss_esapi::traits::UnMarshall;
 
 #[derive(Error, Debug)]
 pub enum VerifyError {
@@ -19,20 +17,39 @@ pub enum VerifyError {
     SignatureMismatch,
     #[error("nonce mismatch")]
     NonceMismatch,
+    #[error("quote error")]
+    Quote(#[from] QuoteError),
 }
 
 impl Quote {
-    /// Verifies the quote's signature and nonce.
+    /// Verify a Quote's signature and nonce
+    ///
+    /// # Arguments
+    ///
+    /// * `pub_key` - A public key to verify the Quote's signature
+    ///
+    /// * `nonce` - A byte slice to verify the Quote's nonce
     pub fn verify(&self, pub_key: &PKey<Public>, nonce: &[u8]) -> Result<(), VerifyError> {
+        self.verify_signature(pub_key)?;
+
+        let quote_nonce = &self.nonce()?;
+        if nonce != quote_nonce {
+            return Err(VerifyError::NonceMismatch);
+        }
+        Ok(())
+    }
+
+    /// Verify a Quote's signature
+    ///
+    /// # Arguments
+    ///
+    /// * `pub_key` - A public key to verify the Quote's signature
+    pub fn verify_signature(&self, pub_key: &PKey<Public>) -> Result<(), VerifyError> {
         let mut verifier = Verifier::new(MessageDigest::sha256(), pub_key)?;
         verifier.update(&self.message)?;
         let is_verified = verifier.verify(&self.signature)?;
         if !is_verified {
             return Err(VerifyError::SignatureMismatch);
-        }
-        let attest = Attest::unmarshall(&self.message)?;
-        if nonce != attest.extra_data().as_slice() {
-            return Err(VerifyError::NonceMismatch);
         }
         Ok(())
     }
