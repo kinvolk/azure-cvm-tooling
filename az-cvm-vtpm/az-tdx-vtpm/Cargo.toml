@@ -16,7 +16,7 @@ name = "tdx-vtpm"
 path = "src/main.rs"
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.4.0" }
+az-cvm-vtpm = { path = "..", version = "0.4.1" }
 base64-url = "2.0.0"
 bincode.workspace = true
 serde.workspace = true
