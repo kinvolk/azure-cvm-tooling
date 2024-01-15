@@ -12,7 +12,7 @@ description = "Package with shared code for Azure Confidential VMs"
 members = [
 	"az-snp-vtpm",
 	"az-tdx-vtpm",
-    "az-snp-vtpm/example",
+	"az-snp-vtpm/example",
 ]
 
 [lib]
@@ -23,7 +23,7 @@ bincode.workspace = true
 jsonwebkey = { version = "0.3.5", features = ["pkcs-convert"] }
 memoffset = "0.9.0"
 openssl = { workspace = true, optional = true }
-rsa = { version = "0.8.2", features = ["pkcs5", "sha2"] }
+rsa = { version = "0.9.6", features = ["pkcs5", "sha2"] }
 serde.workspace = true
 serde_json.workspace = true
 serde-big-array = "0.5.1"
