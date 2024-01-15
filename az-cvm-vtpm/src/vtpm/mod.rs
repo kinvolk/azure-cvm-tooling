@@ -102,6 +102,7 @@ pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
     Ok(pkey)
 }
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum QuoteError {
     #[error("tpm error")]

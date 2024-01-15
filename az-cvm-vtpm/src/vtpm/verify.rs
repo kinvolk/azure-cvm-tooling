@@ -10,6 +10,7 @@ use thiserror::Error;
 use tss_esapi::structures::{Attest, AttestInfo};
 use tss_esapi::traits::UnMarshall;
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum VerifyError {
     #[error("tss error")]
