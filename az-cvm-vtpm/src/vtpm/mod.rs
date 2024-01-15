@@ -167,16 +167,3 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
 
     Ok(Quote { signature, message })
 }
-
-#[cfg(feature = "verifier")]
-#[derive(Error, Debug)]
-pub enum VerifyError {
-    #[error("tss error")]
-    Tss(#[from] tss_esapi::Error),
-    #[error("openssl error")]
-    OpenSsl(#[from] openssl::error::ErrorStack),
-    #[error("nonce mismatch")]
-    NonceMismatch,
-    #[error("quote is not signed by the public key")]
-    SignatureMismatch,
-}
