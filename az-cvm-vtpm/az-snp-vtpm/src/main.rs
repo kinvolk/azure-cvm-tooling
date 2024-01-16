@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Action::Quote { nonce } => {
             println!("quote byte size: {}", nonce.as_bytes().len());
             let quote = vtpm::get_quote(nonce.as_bytes())?;
-            println!("{:02X?}", quote.message);
+            println!("{:02X?}", quote.message());
         }
     }
 

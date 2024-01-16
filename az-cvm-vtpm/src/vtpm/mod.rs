@@ -133,6 +133,11 @@ impl Quote {
         let nonce = attest.extra_data().to_vec();
         Ok(nonce)
     }
+
+    /// Extract message from a Quote
+    pub fn message(&self) -> Vec<u8> {
+        self.message.clone()
+    }
 }
 
 /// Get a signed vTPM Quote
