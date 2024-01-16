@@ -5,6 +5,7 @@ use rsa::{BigUint, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tss_esapi::abstraction::nv;
+use tss_esapi::abstraction::pcr;
 use tss_esapi::abstraction::public::DecodedKey;
 use tss_esapi::handles::TpmHandle;
 use tss_esapi::interface_types::algorithm::HashingAlgorithm;
@@ -101,6 +102,7 @@ pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
     Ok(pkey)
 }
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum QuoteError {
     #[error("tpm error")]
@@ -111,12 +113,17 @@ pub enum QuoteError {
     NotAQuote,
     #[error("Wrong signature, that should not occur")]
     WrongSignature,
+    #[error("PCR bank not found")]
+    PcrBankNotFound,
+    #[error("PCR reading error")]
+    PcrRead,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Quote {
-    pub signature: Vec<u8>,
-    pub message: Vec<u8>,
+    signature: Vec<u8>,
+    message: Vec<u8>,
+    pcrs: Vec<Vec<u8>>,
 }
 
 impl Quote {
@@ -125,6 +132,11 @@ impl Quote {
         let attest = Attest::unmarshall(&self.message)?;
         let nonce = attest.extra_data().to_vec();
         Ok(nonce)
+    }
+
+    /// Extract message from a Quote
+    pub fn message(&self) -> Vec<u8> {
+        self.message.clone()
     }
 }
 
@@ -152,8 +164,12 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     let auth_session = AuthSession::Password;
     context.set_sessions((Some(auth_session), None, None));
 
-    let (attest, signature) =
-        context.quote(key_handle.into(), quote_data, scheme, selection_list)?;
+    let (attest, signature) = context.quote(
+        key_handle.into(),
+        quote_data,
+        scheme,
+        selection_list.clone(),
+    )?;
 
     let AttestInfo::Quote { .. } = attest.attested() else {
         return Err(QuoteError::NotAQuote);
@@ -165,18 +181,21 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
     let signature = rsa_sig.signature().to_vec();
     let message = attest.marshall()?;
 
-    Ok(Quote { signature, message })
-}
+    context.clear_sessions();
+    let pcr_data = pcr::read_all(&mut context, selection_list)?;
 
-#[cfg(feature = "verifier")]
-#[derive(Error, Debug)]
-pub enum VerifyError {
-    #[error("tss error")]
-    Tss(#[from] tss_esapi::Error),
-    #[error("openssl error")]
-    OpenSsl(#[from] openssl::error::ErrorStack),
-    #[error("nonce mismatch")]
-    NonceMismatch,
-    #[error("quote is not signed by the public key")]
-    SignatureMismatch,
+    let pcr_bank = pcr_data
+        .pcr_bank(hash_algo)
+        .ok_or(QuoteError::PcrBankNotFound)?;
+
+    let pcrs = pcr_bank
+        .into_iter()
+        .map(|(_, x)| x.value().to_vec())
+        .collect();
+
+    Ok(Quote {
+        signature,
+        message,
+        pcrs,
+    })
 }
