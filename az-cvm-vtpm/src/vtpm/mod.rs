@@ -21,6 +21,9 @@ use tss_esapi::Context;
 #[cfg(feature = "verifier")]
 mod verify;
 
+#[cfg(feature = "verifier")]
+pub use verify::VerifyError;
+
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
 const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 24] = [
