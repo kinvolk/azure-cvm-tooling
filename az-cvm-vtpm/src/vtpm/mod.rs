@@ -126,10 +126,15 @@ pub enum QuoteError {
 pub struct Quote {
     signature: Vec<u8>,
     message: Vec<u8>,
-    pcrs: Vec<Vec<u8>>,
+    pcrs: Vec<[u8; 32]>,
 }
 
 impl Quote {
+    /// Retrieve sha256 PCR values from a Quote
+    pub fn pcrs_sha256(&self) -> impl Iterator<Item = &[u8; 32]> {
+        self.pcrs.iter()
+    }
+
     /// Extract nonce from a Quote
     pub fn nonce(&self) -> Result<Vec<u8>, QuoteError> {
         let attest = Attest::unmarshall(&self.message)?;
@@ -191,10 +196,11 @@ pub fn get_quote(data: &[u8]) -> Result<Quote, QuoteError> {
         .pcr_bank(hash_algo)
         .ok_or(QuoteError::PcrBankNotFound)?;
 
-    let pcrs = pcr_bank
+    let pcrs: Result<Vec<[u8; 32]>, _> = pcr_bank
         .into_iter()
-        .map(|(_, x)| x.value().to_vec())
+        .map(|(_, digest)| digest.clone().try_into().map_err(|_| QuoteError::PcrRead))
         .collect();
+    let pcrs = pcrs?;
 
     Ok(Quote {
         signature,
