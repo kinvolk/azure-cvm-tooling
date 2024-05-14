@@ -68,7 +68,7 @@ impl RelyingParty {
     pub fn request_secret(&mut self) -> Vec<u8> {
         // placeholder for a real nonce, it is usually randomly generated ephemeral value.
         let nonce = "challenge".as_bytes().to_vec();
-        self.nonce = nonce.clone();
+        self.nonce.clone_from(&nonce);
         nonce
     }
 
