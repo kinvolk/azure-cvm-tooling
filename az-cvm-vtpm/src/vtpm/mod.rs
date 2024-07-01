@@ -1,12 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use rsa::{BigUint, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tss_esapi::abstraction::nv;
-use tss_esapi::abstraction::pcr;
-use tss_esapi::abstraction::public::DecodedKey;
+use tss_esapi::abstraction::{nv, pcr, public::DecodedKey};
 use tss_esapi::handles::TpmHandle;
 use tss_esapi::interface_types::algorithm::HashingAlgorithm;
 use tss_esapi::interface_types::resource_handles::NvAuth;
@@ -79,12 +76,28 @@ pub enum AKPubError {
     Tpm(#[from] tss_esapi::Error),
     #[error("asn1 der error")]
     WrongKeyType,
-    #[error("rsa error")]
-    OpenSsl(#[from] rsa::errors::Error),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PublicKey {
+    n: Vec<u8>,
+    e: Vec<u8>,
+}
+
+impl PublicKey {
+    /// Get the modulus of the public key as big-endian unsigned bytes
+    pub fn modulus(&self) -> &[u8] {
+        &self.n
+    }
+
+    /// Get the public exponent of the public key as big-endian unsigned bytes
+    pub fn exponent(&self) -> &[u8] {
+        &self.e
+    }
 }
 
 /// Get the AK pub of the vTPM
-pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
+pub fn get_ak_pub() -> Result<PublicKey, AKPubError> {
     let conf: TctiNameConf = TctiNameConf::Device(DeviceConfig::default());
     let mut context = Context::new(conf)?;
     let tpm_handle: TpmHandle = VTPM_AK_HANDLE.try_into()?;
@@ -96,12 +109,12 @@ pub fn get_ak_pub() -> Result<RsaPublicKey, AKPubError> {
         return Err(AKPubError::WrongKeyType);
     };
 
-    let bytes = rsa_pk.modulus.as_unsigned_bytes_be();
-    let n = BigUint::from_bytes_be(bytes);
-    let bytes = rsa_pk.public_exponent.as_unsigned_bytes_be();
-    let e = BigUint::from_bytes_be(bytes);
-
-    let pkey = RsaPublicKey::new(n, e)?;
+    let bytes_n = rsa_pk.modulus.as_unsigned_bytes_be();
+    let bytes_e = rsa_pk.public_exponent.as_unsigned_bytes_be();
+    let pkey = PublicKey {
+        n: bytes_n.into(),
+        e: bytes_e.into(),
+    };
     Ok(pkey)
 }
 
