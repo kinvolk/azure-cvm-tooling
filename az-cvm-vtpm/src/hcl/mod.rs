@@ -146,8 +146,7 @@ impl HclReport {
         }
         let mut hasher = Sha256::new();
         hasher.update(self.var_data_slice());
-        let hash = hasher.finalize();
-        hash.into()
+        hasher.finalize().into()
     }
 
     /// Get the slice of the VarData section

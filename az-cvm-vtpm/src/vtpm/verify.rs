@@ -2,10 +2,8 @@
 // Licensed under the MIT License.
 
 use super::{Quote, QuoteError};
-use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Public};
-use openssl::sign::Verifier;
-use sha2::{Digest, Sha256};
+use openssl::{hash::MessageDigest, sha::Sha256, sign::Verifier};
 use thiserror::Error;
 use tss_esapi::structures::{Attest, AttestInfo};
 use tss_esapi::traits::UnMarshall;
@@ -79,7 +77,7 @@ impl Quote {
             hasher.update(pcr);
         }
 
-        let digest = hasher.finalize();
+        let digest = hasher.finish();
         if digest[..] != pcr_digest[..] {
             return Err(VerifyError::PcrMismatch);
         }
