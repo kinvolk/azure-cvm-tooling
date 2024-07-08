@@ -29,7 +29,7 @@ serde-big-array = "0.5.1"
 sev.workspace = true
 sha2 = "0.10.8"
 thiserror.workspace = true
-tss-esapi = "7.4"
+tss-esapi = "7.5"
 zerocopy.workspace = true
 
 [features]
