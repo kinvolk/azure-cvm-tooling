@@ -2,15 +2,19 @@
 // Licensed under the MIT License.
 
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use thiserror::Error;
 use tss_esapi::abstraction::{nv, pcr, public::DecodedKey};
-use tss_esapi::handles::{PcrHandle, TpmHandle};
+use tss_esapi::attributes::NvIndexAttributesBuilder;
+use tss_esapi::handles::{NvIndexTpmHandle, PcrHandle, TpmHandle};
 use tss_esapi::interface_types::algorithm::HashingAlgorithm;
 use tss_esapi::interface_types::resource_handles::NvAuth;
 use tss_esapi::interface_types::session_handles::AuthSession;
 use tss_esapi::structures::pcr_selection_list::PcrSelectionListBuilder;
 use tss_esapi::structures::pcr_slot::PcrSlot;
-use tss_esapi::structures::{Attest, AttestInfo, Data, DigestValues, Signature, SignatureScheme};
+use tss_esapi::structures::{
+    Attest, AttestInfo, Data, DigestValues, NvPublicBuilder, Signature, SignatureScheme,
+};
 use tss_esapi::tcti_ldr::{DeviceConfig, TctiNameConf};
 use tss_esapi::traits::{Marshall, UnMarshall};
 use tss_esapi::Context;
@@ -22,6 +26,7 @@ mod verify;
 pub use verify::VerifyError;
 
 const VTPM_HCL_REPORT_NV_INDEX: u32 = 0x01400001;
+const INDEX_REPORT_DATA: u32 = 0x01400002;
 const VTPM_AK_HANDLE: u32 = 0x81000003;
 const VTPM_QUOTE_PCR_SLOTS: [PcrSlot; 24] = [
     PcrSlot::Slot0,
@@ -84,10 +89,31 @@ fn to_pcr_handle(pcr: u8) -> Result<PcrHandle, ExtendError> {
 pub enum ReportError {
     #[error("tpm error")]
     Tpm(#[from] tss_esapi::Error),
+    #[error("Failed to write value to nvindex")]
+    NvWriteFailed,
 }
 
 /// Get a HCL report from an nvindex
 pub fn get_report() -> Result<Vec<u8>, ReportError> {
+    let (nv_index, mut context) = get_session_context()?;
+
+    let report = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
+    Ok(report)
+}
+
+/// Retrieve a fresh HCL report from a nvindex. The specified report_data will be reflected
+/// in the HCL report in its user_data field and mixed into a hash in the TEE report's report_data
+pub fn get_report_with_report_data(report_data: &[u8]) -> Result<Vec<u8>, ReportError> {
+    let (nv_index, mut context) = get_session_context()?;
+
+    let nv_index_report_data = NvIndexTpmHandle::new(INDEX_REPORT_DATA)?;
+    write_nv_index(&mut context, nv_index_report_data, report_data)?;
+
+    let report = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
+    Ok(report)
+}
+
+fn get_session_context() -> Result<(NvIndexTpmHandle, Context), ReportError> {
     use tss_esapi::handles::NvIndexTpmHandle;
     let nv_index = NvIndexTpmHandle::new(VTPM_HCL_REPORT_NV_INDEX)?;
 
@@ -95,9 +121,43 @@ pub fn get_report() -> Result<Vec<u8>, ReportError> {
     let mut context = Context::new(conf)?;
     let auth_session = AuthSession::Password;
     context.set_sessions((Some(auth_session), None, None));
+    Ok((nv_index, context))
+}
 
-    let report = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
-    Ok(report)
+fn write_nv_index(
+    context: &mut Context,
+    nv_index: NvIndexTpmHandle,
+    data: &[u8],
+) -> Result<(), ReportError> {
+    let owner_nv_index_attributes = NvIndexAttributesBuilder::new()
+        .with_owner_write(true)
+        .with_owner_read(true)
+        .with_pp_read(true)
+        .build()?;
+
+    let owner_nv_public = NvPublicBuilder::new()
+        .with_nv_index(nv_index)
+        .with_index_name_algorithm(HashingAlgorithm::Sha256)
+        .with_index_attributes(owner_nv_index_attributes)
+        .with_data_area_size(data.len())
+        .build()?;
+
+    let mut rw = match nv::list(context)?
+        .iter()
+        .find(|(public, _)| public.nv_index() == nv_index)
+    {
+        Some(_) => nv::NvOpenOptions::ExistingIndex {
+            nv_index_handle: nv_index,
+            auth_handle: NvAuth::Owner,
+        },
+        None => nv::NvOpenOptions::NewIndex {
+            nv_public: owner_nv_public,
+            auth_handle: NvAuth::Owner,
+        },
+    }
+    .open(context)?;
+
+    rw.write_all(data).map_err(|_| ReportError::NvWriteFailed)
 }
 
 #[derive(Error, Debug)]
