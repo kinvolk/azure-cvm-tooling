@@ -145,12 +145,12 @@ impl HclReport {
             );
         }
         let mut hasher = Sha256::new();
-        hasher.update(self.var_data_slice());
+        hasher.update(self.var_data());
         hasher.finalize().into()
     }
 
     /// Get the slice of the VarData section
-    fn var_data_slice(&self) -> &[u8] {
+    pub fn var_data(&self) -> &[u8] {
         let var_data_offset =
             offset_of!(AttestationReport, hcl_data) + offset_of!(IgvmRequestData, variable_data);
         let hcl_data = &self.attestation_report.hcl_data;
@@ -160,7 +160,7 @@ impl HclReport {
 
     /// Get the vTPM's AKpub from the VarData section
     pub fn ak_pub(&self) -> Result<JsonWebKey, HclError> {
-        let VarDataKeys { keys } = serde_json::from_slice(self.var_data_slice())?;
+        let VarDataKeys { keys } = serde_json::from_slice(self.var_data())?;
         let ak_pub = keys
             .into_iter()
             .find(|key| {
