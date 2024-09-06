@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use std::thread;
 use thiserror::Error;
 use tss_esapi::abstraction::{nv, pcr, public::DecodedKey};
 use tss_esapi::attributes::NvIndexAttributesBuilder;
@@ -102,12 +104,15 @@ pub fn get_report() -> Result<Vec<u8>, ReportError> {
 }
 
 /// Retrieve a fresh HCL report from a nvindex. The specified report_data will be reflected
-/// in the HCL report in its user_data field and mixed into a hash in the TEE report's report_data
+/// in the HCL report in its user_data field and mixed into a hash in the TEE report's report_data.
+/// The Function contains a 3 seconds delay to avoid retrieving a stale report.
 pub fn get_report_with_report_data(report_data: &[u8]) -> Result<Vec<u8>, ReportError> {
     let (nv_index, mut context) = get_session_context()?;
 
     let nv_index_report_data = NvIndexTpmHandle::new(INDEX_REPORT_DATA)?;
     write_nv_index(&mut context, nv_index_report_data, report_data)?;
+
+    thread::sleep(Duration::new(3, 0));
 
     let report = nv::read_full(&mut context, NvAuth::Owner, nv_index)?;
     Ok(report)
