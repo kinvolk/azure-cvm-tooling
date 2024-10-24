@@ -1,6 +1,6 @@
 [package]
 name = "az-tdx-vtpm"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"
@@ -16,7 +16,7 @@ name = "tdx-vtpm"
 path = "src/main.rs"
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.7.0" }
+az-cvm-vtpm = { path = "..", version = "0.7.1" }
 base64-url = "3.0.0"
 bincode.workspace = true
 serde.workspace = true
@@ -27,8 +27,10 @@ zerocopy.workspace = true
 
 [dev-dependencies]
 openssl.workspace = true
+hex.workspace = true
 
 [features]
 default = ["attester", "verifier"]
 attester = []
 verifier = ["az-cvm-vtpm/verifier"]
+integration_test =[]
