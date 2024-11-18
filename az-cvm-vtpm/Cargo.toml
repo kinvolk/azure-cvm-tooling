@@ -1,6 +1,6 @@
 [package]
 name = "az-cvm-vtpm"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"
@@ -48,3 +48,4 @@ thiserror = "2.0.3"
 sev = "4.0.0"
 ureq = { version = "2.6.2", default-features = false, features = ["json"] }
 zerocopy = { version = "0.7.26", features = ["derive"] }
+hex = "0.4"

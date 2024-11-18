@@ -20,3 +20,12 @@ On the TDX CVM, retrieve a TD Quote and write it to disk:
 ```bash
 sudo ./tdx-vtpm
 ```
+
+## Integration Tests
+
+The integration test suite can run on a TDX CVM. It needs to be executed as root and the tests have to run sequentially.
+
+```bash
+sudo -E env "PATH=$PATH" cargo t --features integration_test -- --test-threads 1
+```
+
