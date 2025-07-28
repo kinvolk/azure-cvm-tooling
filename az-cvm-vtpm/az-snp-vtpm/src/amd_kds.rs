@@ -44,7 +44,7 @@ pub fn get_cert_chain() -> Result<AmdChain, AmdKdsError> {
 fn hexify(bytes: &[u8]) -> String {
     let mut hex_string = String::new();
     for byte in bytes {
-        hex_string.push_str(&format!("{:02x}", byte));
+        hex_string.push_str(&format!("{byte:02x}"));
     }
     hex_string
 }

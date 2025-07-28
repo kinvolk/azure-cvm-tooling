@@ -85,6 +85,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let evidence = Attester::gather_evidence(&nonce)?;
     let secret = rp.release_secret(&evidence)?;
 
-    println!("Secret: {}", secret);
+    println!("Secret: {secret}");
     Ok(())
 }
