@@ -3,12 +3,11 @@
 
 #[cfg(feature = "verifier")]
 use super::certs::Vcek;
-use az_cvm_vtpm::hcl::{self, HclReport};
+use az_cvm_vtpm::hcl::{self, HclReport, SNP_REPORT_SIZE};
 use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
 #[cfg(feature = "verifier")]
-use sev::certs::snp::ecdsa::Signature;
 pub use sev::firmware::guest::AttestationReport;
 use thiserror::Error;
 
@@ -65,7 +64,10 @@ pub enum ReportError {
 }
 
 pub fn parse(bytes: &[u8]) -> Result<AttestationReport, ReportError> {
-    let snp_report = bincode::deserialize::<AttestationReport>(bytes)?;
+    // Use the sev's from_bytes method(since sev-6) which handles dynamic parsing
+    // of different SNP report versions (v2, v3-PreTurin, v3-Turin)
+    let snp_report = AttestationReport::from_bytes(bytes)
+        .map_err(|e| ReportError::Parse(Box::new(bincode::ErrorKind::Io(e))))?;
     Ok(snp_report)
 }
 
@@ -76,10 +78,13 @@ fn is_tcb_data_valid(report: &AttestationReport) -> bool {
 
 #[cfg(feature = "verifier")]
 fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
-    let report_len = std::mem::size_of::<AttestationReport>();
-    let signature_len = std::mem::size_of::<Signature>();
-    let bytes = bincode::serialize(report)?;
-    let report_bytes_without_sig = &bytes[0..(report_len - signature_len)];
+    // Use sev's write_bytes method (since SEV-6) for serializing SNP reports to ensure full compatibility
+    // Original bincode::serialize + size_of calculation is inaccurate on SEV 6.x
+    let mut raw_bytes = Vec::with_capacity(SNP_REPORT_SIZE);
+    report
+        .write_bytes(&mut raw_bytes)
+        .map_err(|e| Box::new(bincode::ErrorKind::Io(e)))?;
+    let report_bytes_without_sig = &raw_bytes[0..0x2a0];
     Ok(report_bytes_without_sig.to_vec())
 }
 

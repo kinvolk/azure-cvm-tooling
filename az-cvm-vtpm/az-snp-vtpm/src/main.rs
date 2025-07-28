@@ -68,11 +68,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             snp_report.validate(&vcek)?;
 
             if print {
-                println!("{}", snp_report);
+                println!("{snp_report}");
             }
         }
         Action::Quote { nonce } => {
-            println!("quote byte size: {}", nonce.as_bytes().len());
+            println!("quote byte size: {}", nonce.len());
             let quote = vtpm::get_quote(nonce.as_bytes())?;
             println!("{:02X?}", quote.message());
         }

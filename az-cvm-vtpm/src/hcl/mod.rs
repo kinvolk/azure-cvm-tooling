@@ -15,7 +15,10 @@ use thiserror::Error;
 
 const HCL_AKPUB_KEY_ID: &str = "HCLAkPub";
 const TD_REPORT_SIZE: usize = size_of::<TdReport>();
-const SNP_REPORT_SIZE: usize = size_of::<SnpReport>();
+// SNP AttestationReport binary format size as defined in AMD SNP Firmware ABI specification.
+// This corresponds to ATT_REP_FW_LEN defined in sev-6.x crate's snp.rs (which is not public).
+// All SNP report versions (v2, v3-PreTurin, v3-Turin) use this fixed size.
+pub const SNP_REPORT_SIZE: usize = 1184;
 const fn max(a: usize, b: usize) -> usize {
     if a > b {
         return a;
@@ -101,6 +104,7 @@ pub enum ReportType {
     Snp,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum HwReport {
     Tdx(TdReport),
     Snp(SnpReport),
@@ -203,7 +207,10 @@ impl TryFrom<&HclReport> for SnpReport {
             return Err(HclError::InvalidReportType);
         }
         let bytes = hcl_report.report_slice();
-        let snp_report = bincode::deserialize::<SnpReport>(bytes)?;
+        // Use the sev-6.x crate's from_bytes method which handles dynamic parsing
+        // of different SNP report versions (v2, v3-PreTurin, v3-Turin)
+        let snp_report = SnpReport::from_bytes(bytes)
+            .map_err(|e| HclError::BinaryParseError(Box::new(bincode::ErrorKind::Io(e))))?;
         Ok(snp_report)
     }
 }
