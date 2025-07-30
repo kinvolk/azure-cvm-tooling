@@ -4,7 +4,7 @@
 use az_cvm_vtpm::tdx::TdReport;
 use serde::Deserialize;
 use thiserror::Error;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 const IMDS_QUOTE_URL: &str = "http://169.254.169.254/acc/tdquote";
 
