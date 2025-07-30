@@ -7,7 +7,6 @@ use az_cvm_vtpm::hcl::{self, HclReport, SNP_REPORT_SIZE};
 use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
-#[cfg(feature = "verifier")]
 pub use sev::firmware::guest::AttestationReport;
 use thiserror::Error;
 
