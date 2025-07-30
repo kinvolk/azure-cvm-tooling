@@ -6,10 +6,10 @@
 
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use zerocopy::AsBytes;
+use zerocopy::{Immutable, IntoBytes};
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Immutable, IntoBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ReportType {
     pub r#type: u8,
     pub subtype: u8,
@@ -18,7 +18,7 @@ pub struct ReportType {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Immutable, IntoBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ReportMac {
     pub reporttype: ReportType,
     pub _reserved_1: [u8; 12],
@@ -34,14 +34,14 @@ pub struct ReportMac {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Immutable, IntoBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Rtmr {
     #[serde(with = "BigArray")]
     pub register_data: [u8; 48],
 }
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Immutable, IntoBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TdInfo {
     pub attributes: [u8; 8],
     pub xfam: [u8; 8],
@@ -59,7 +59,7 @@ pub struct TdInfo {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Immutable, IntoBytes, Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TdReport {
     pub report_mac: ReportMac,
     #[serde(with = "BigArray")]
