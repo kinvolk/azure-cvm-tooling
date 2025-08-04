@@ -3,7 +3,9 @@
 
 #[cfg(feature = "verifier")]
 use super::certs::Vcek;
-use az_cvm_vtpm::hcl::{self, HclReport, SNP_REPORT_SIZE};
+#[cfg(feature = "verifier")]
+use az_cvm_vtpm::hcl::SNP_REPORT_SIZE;
+use az_cvm_vtpm::hcl::{self, HclReport};
 use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
