@@ -5,13 +5,14 @@ use crate::tdx::TdReport;
 use jsonwebkey::JsonWebKey;
 use memoffset::offset_of;
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 use sev::firmware::guest::AttestationReport as SnpReport;
+use sev::parser::ByteParser;
 use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Range;
 use thiserror::Error;
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 const HCL_AKPUB_KEY_ID: &str = "HCLAkPub";
 const TD_REPORT_SIZE: usize = size_of::<TdReport>();
@@ -37,12 +38,12 @@ const SNP_REPORT_RANGE: Range<usize> = report_range(SNP_REPORT_SIZE);
 
 #[derive(Error, Debug)]
 pub enum HclError {
+    #[error("invalid report size")]
+    InvalidReportSize,
     #[error("invalid report type")]
     InvalidReportType,
     #[error("AkPub not found")]
     AkPubNotFound,
-    #[error("binary parse error")]
-    BinaryParseError(#[from] bincode::Error),
     #[error("JSON parse error")]
     JsonParseError(#[from] serde_json::Error),
 }
@@ -62,18 +63,18 @@ enum IgvmHashType {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromBytes, Immutable, IntoBytes)]
 struct IgvmRequestData {
     data_size: u32,
     version: u32,
     report_type: u32,
-    report_data_hash_type: IgvmHashType,
+    report_data_hash_type: u32,
     variable_data_size: u32,
     variable_data: [u8; 0],
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromBytes, Immutable, IntoBytes)]
 struct AttestationHeader {
     signature: u32,
     version: u32,
@@ -84,10 +85,9 @@ struct AttestationHeader {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromBytes, Immutable, IntoBytes)]
 struct AttestationReport {
     header: AttestationHeader,
-    #[serde(with = "BigArray")]
     hw_report: [u8; MAX_REPORT_SIZE],
     hcl_data: IgvmRequestData,
 }
@@ -113,7 +113,27 @@ pub enum HwReport {
 impl HclReport {
     /// Parse a HCL report from a byte slice.
     pub fn new(bytes: Vec<u8>) -> Result<Self, HclError> {
-        let attestation_report: AttestationReport = bincode::deserialize(&bytes)?;
+        const STRUCT_SIZE: usize = std::mem::size_of::<AttestationReport>();
+
+        if bytes.len() < STRUCT_SIZE {
+            return Err(HclError::InvalidReportSize);
+        }
+
+        // Read fixed struct using zerocopy
+        let struct_bytes = &bytes[..STRUCT_SIZE];
+        let cursor = struct_bytes;
+        let attestation_report =
+            AttestationReport::read_from_bytes(cursor).map_err(|_| HclError::InvalidReportSize)?;
+
+        // Validate variable data size if present
+        let var_data_size = attestation_report.hcl_data.variable_data_size as usize;
+        if var_data_size > 0 {
+            let var_data_end = STRUCT_SIZE + var_data_size;
+            if bytes.len() < var_data_end {
+                return Err(HclError::InvalidReportSize);
+            }
+        }
+
         let report_type = match attestation_report.hcl_data.report_type {
             TDX_REPORT_TYPE => ReportType::Tdx,
             SNP_REPORT_TYPE => ReportType::Snp,
@@ -142,9 +162,9 @@ impl HclReport {
 
     /// Get the SHA256 hash of the VarData section
     pub fn var_data_sha256(&self) -> [u8; 32] {
-        if self.attestation_report.hcl_data.report_data_hash_type != IgvmHashType::Sha256 {
+        if self.attestation_report.hcl_data.report_data_hash_type != IgvmHashType::Sha256 as u32 {
             unimplemented!(
-                "Only SHA256 is supported, got {:?}",
+                "Only SHA256 is supported, got hash type {}",
                 self.attestation_report.hcl_data.report_data_hash_type
             );
         }
@@ -186,7 +206,10 @@ impl TryFrom<&HclReport> for TdReport {
             return Err(HclError::InvalidReportType);
         }
         let bytes = hcl_report.report_slice();
-        let td_report = bincode::deserialize::<TdReport>(bytes)?;
+        // Use zerocopy for safe casting - read_from_bytes consumes the bytes and handles large arrays
+        let cursor = bytes;
+        let td_report =
+            TdReport::read_from_bytes(cursor).map_err(|_| HclError::InvalidReportSize)?;
         Ok(td_report)
     }
 }
@@ -209,8 +232,7 @@ impl TryFrom<&HclReport> for SnpReport {
         let bytes = hcl_report.report_slice();
         // Use the sev-6.x crate's from_bytes method which handles dynamic parsing
         // of different SNP report versions (v2, v3-PreTurin, v3-Turin)
-        let snp_report = SnpReport::from_bytes(bytes)
-            .map_err(|e| HclError::BinaryParseError(Box::new(bincode::ErrorKind::Io(e))))?;
+        let snp_report = SnpReport::from_bytes(bytes).map_err(|_e| HclError::InvalidReportType)?;
         Ok(snp_report)
     }
 }

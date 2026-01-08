@@ -1,13 +1,13 @@
 use crate::hcl::{self, HclReport};
 use crate::tdx::TdReport;
 use crate::vtpm;
-use bincode::deserialize;
 use thiserror::Error;
+use zerocopy::FromBytes;
 
 #[derive(Error, Debug)]
 pub enum ReportError {
     #[error("deserialization error")]
-    Parse(#[from] Box<bincode::ErrorKind>),
+    InvalidSize,
     #[error("vTPM error")]
     Vtpm(#[from] vtpm::ReportError),
     #[error("HCL error")]
@@ -16,7 +16,8 @@ pub enum ReportError {
 
 /// Parse raw bytes into TdReport
 pub fn parse(bytes: &[u8]) -> Result<TdReport, ReportError> {
-    deserialize::<TdReport>(bytes).map_err(|e| e.into())
+    let cursor = bytes;
+    TdReport::read_from_bytes(cursor).map_err(|_| ReportError::InvalidSize)
 }
 
 /// Fetch TdReport from vTPM and parse it
