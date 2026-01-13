@@ -3,13 +3,12 @@
 
 #[cfg(feature = "verifier")]
 use super::certs::Vcek;
-#[cfg(feature = "verifier")]
-use az_cvm_vtpm::hcl::SNP_REPORT_SIZE;
 use az_cvm_vtpm::hcl::{self, HclReport};
 use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
 pub use sev::firmware::guest::AttestationReport;
+use sev::parser::ByteParser;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -23,8 +22,6 @@ pub enum ValidateError {
     MeasurementSignature,
     #[error("IO error")]
     Io(#[from] std::io::Error),
-    #[error("bincode error")]
-    Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
 #[cfg(feature = "verifier")]
@@ -57,7 +54,7 @@ impl Validateable for AttestationReport {
 #[derive(Error, Debug)]
 pub enum ReportError {
     #[error("deserialization error")]
-    Parse(#[from] Box<bincode::ErrorKind>),
+    InvalidSize,
     #[error("vTPM error")]
     Vtpm(#[from] vtpm::ReportError),
     #[error("HCL error")]
@@ -67,8 +64,7 @@ pub enum ReportError {
 pub fn parse(bytes: &[u8]) -> Result<AttestationReport, ReportError> {
     // Use the sev's from_bytes method(since sev-6) which handles dynamic parsing
     // of different SNP report versions (v2, v3-PreTurin, v3-Turin)
-    let snp_report = AttestationReport::from_bytes(bytes)
-        .map_err(|e| ReportError::Parse(Box::new(bincode::ErrorKind::Io(e))))?;
+    let snp_report = AttestationReport::from_bytes(bytes).map_err(|_e| ReportError::InvalidSize)?;
     Ok(snp_report)
 }
 
@@ -78,14 +74,10 @@ fn is_tcb_data_valid(report: &AttestationReport) -> bool {
 }
 
 #[cfg(feature = "verifier")]
-fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
-    // Use sev's write_bytes method (since SEV-6) for serializing SNP reports to ensure full compatibility
-    // Original bincode::serialize + size_of calculation is inaccurate on SEV 6.x
-    let mut raw_bytes = Vec::with_capacity(SNP_REPORT_SIZE);
-    report
-        .write_bytes(&mut raw_bytes)
-        .map_err(|e| Box::new(bincode::ErrorKind::Io(e)))?;
-    let report_bytes_without_sig = &raw_bytes[0..0x2a0];
+fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, ValidateError> {
+    // Use sev's to_bytes method (since SEV-7) for serializing SNP reports to ensure full compatibility
+    let raw_bytes = report.to_bytes().map_err(ValidateError::Io)?;
+    let report_bytes_without_sig = &raw_bytes[..0x2a0];
     Ok(report_bytes_without_sig.to_vec())
 }
 

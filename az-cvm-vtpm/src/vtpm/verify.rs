@@ -90,10 +90,61 @@ impl Quote {
 mod tests {
     use super::*;
 
+    /// Deserialize Quote from binary format
+    /// The test fixture is stored in a binary format that was previously bincode-encoded.
+    /// This deserializer reconstructs the Quote struct from the binary data.
+    fn deserialize_quote(data: &[u8]) -> Result<Quote, String> {
+        use std::io::{Cursor, Read};
+
+        let mut cursor = Cursor::new(data);
+
+        // Read signature (Vec<u8>)
+        let mut signature_len_bytes = [0u8; 8];
+        cursor
+            .read_exact(&mut signature_len_bytes)
+            .map_err(|e| format!("Failed to read signature length: {e}"))?;
+        let signature_len = u64::from_le_bytes(signature_len_bytes) as usize;
+        let mut signature = vec![0u8; signature_len];
+        cursor
+            .read_exact(&mut signature)
+            .map_err(|e| format!("Failed to read signature: {e}"))?;
+
+        // Read message (Vec<u8>)
+        let mut message_len_bytes = [0u8; 8];
+        cursor
+            .read_exact(&mut message_len_bytes)
+            .map_err(|e| format!("Failed to read message length: {e}"))?;
+        let message_len = u64::from_le_bytes(message_len_bytes) as usize;
+        let mut message = vec![0u8; message_len];
+        cursor
+            .read_exact(&mut message)
+            .map_err(|e| format!("Failed to read message: {e}"))?;
+
+        // Read pcrs (Vec<[u8; 32]>)
+        let mut pcrs_len_bytes = [0u8; 8];
+        cursor
+            .read_exact(&mut pcrs_len_bytes)
+            .map_err(|e| format!("Failed to read pcrs length: {e}"))?;
+        let pcrs_len = u64::from_le_bytes(pcrs_len_bytes) as usize;
+        let mut pcrs = Vec::with_capacity(pcrs_len);
+        for _ in 0..pcrs_len {
+            let mut pcr = [0u8; 32];
+            cursor
+                .read_exact(&mut pcr)
+                .map_err(|e| format!("Failed to read pcr: {e}"))?;
+            pcrs.push(pcr);
+        }
+
+        Ok(Quote {
+            signature,
+            message,
+            pcrs,
+        })
+    }
+
     // // Use this code to generate the scriptures for the test on an AMD CVM.
     //
     // use az_snp_vtpm::vtpm;
-    // use bincode;
     // use rsa;
     // use rsa::pkcs8::EncodePublicKey;
     // use std::error::Error;
@@ -128,7 +179,8 @@ mod tests {
         // For PCR values:
         // sudo tpm2_pcrread sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23
         let quote_bytes = include_bytes!("../../test/quote.bin");
-        let quote: Quote = bincode::deserialize(quote_bytes).unwrap();
+        // Using custom deserializer to read the test fixture
+        let quote: Quote = deserialize_quote(quote_bytes).expect("Failed to deserialize quote");
 
         // proper nonce in message
         let nonce = "challenge".as_bytes().to_vec();
@@ -158,7 +210,8 @@ mod tests {
     #[test]
     fn test_pcr_values() {
         let quote_bytes = include_bytes!("../../test/quote.bin");
-        let quote: Quote = bincode::deserialize(quote_bytes).unwrap();
+        // Using custom deserializer to read the test fixture
+        let quote: Quote = deserialize_quote(quote_bytes).expect("Failed to deserialize quote");
         let result = quote.verify_pcrs();
         assert!(result.is_ok(), "PCR verification should not fail");
     }

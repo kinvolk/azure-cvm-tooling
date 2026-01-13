@@ -1,6 +1,6 @@
 [package]
 name = "az-snp-vtpm"
-version = "0.7.4"
+version = "0.8.0"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"
@@ -17,8 +17,7 @@ path = "src/main.rs"
 required-features = ["attester", "verifier"]
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.7.4" }
-bincode.workspace = true
+az-cvm-vtpm = { path = "..", version = "0.8.0" }
 clap.workspace = true
 openssl = { workspace = true, optional = true }
 serde.workspace = true
