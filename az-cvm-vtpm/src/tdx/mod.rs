@@ -53,7 +53,7 @@ pub struct TdInfo {
     pub mrowner: [u8; 48],
     #[serde(with = "BigArray")]
     pub mrownerconfig: [u8; 48],
-    pub rtrm: [Rtmr; 4],
+    pub rtmr: [Rtmr; 4],
     #[serde(with = "BigArray")]
     pub _reserved: [u8; 112],
 }
