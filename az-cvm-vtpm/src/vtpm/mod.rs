@@ -311,6 +311,11 @@ impl Quote {
         self.pcrs.iter()
     }
 
+    /// Extract signature from a Quote
+    pub fn signature(&self) -> Vec<u8> {
+        self.signature.clone()
+    }
+
     /// Extract nonce from a Quote
     pub fn nonce(&self) -> Result<Vec<u8>, QuoteError> {
         let attest = Attest::unmarshall(&self.message)?;
