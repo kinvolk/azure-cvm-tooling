@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 use az_cvm_vtpm::tdx::TdReport;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zerocopy::IntoBytes;
 
@@ -18,6 +18,7 @@ pub enum ImdsError {
     IoError(#[from] std::io::Error),
 }
 
+#[derive(Serialize)]
 struct ReportBody {
     report: String,
 }
@@ -40,11 +41,11 @@ pub fn get_td_quote(td_report: &TdReport) -> Result<Vec<u8>, ImdsError> {
     let bytes = td_report.as_bytes();
     let report_body = ReportBody::new(bytes);
     let response: QuoteResponse = ureq::post(IMDS_QUOTE_URL)
-        .send_json(ureq::json!({
-            "report": report_body.report,
-        }))
+        .send_json(&report_body)
         .map_err(Box::new)?
-        .into_json()?;
+        .body_mut()
+        .read_json()
+        .map_err(Box::new)?;
     let quote = base64_url::decode(&response.quote)?;
     Ok(quote)
 }

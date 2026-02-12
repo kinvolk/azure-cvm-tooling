@@ -32,5 +32,5 @@ hex.workspace = true
 [features]
 default = ["attester", "verifier"]
 attester = []
-verifier = ["az-cvm-vtpm/openssl", "openssl", "ureq/tls"]
+verifier = ["az-cvm-vtpm/openssl", "openssl", "ureq/native-tls", "ureq/json"]
 integration_test = []

@@ -5,6 +5,7 @@ use crate::certs::{AmdChain, Vcek};
 use crate::HttpError;
 use openssl::x509::X509;
 use sev::firmware::guest::AttestationReport;
+use std::io::Read;
 use thiserror::Error;
 
 const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
@@ -13,9 +14,9 @@ const SEV_PROD_NAME: &str = "Milan";
 const KDS_CERT_CHAIN: &str = "cert_chain";
 
 fn get(url: &str) -> Result<Vec<u8>, HttpError> {
-    let mut body = ureq::get(url).call().map_err(Box::new)?.into_reader();
+    let mut res = ureq::get(url).call().map_err(Box::new)?;
     let mut buffer = Vec::new();
-    body.read_to_end(&mut buffer)?;
+    res.body_mut().as_reader().read_to_end(&mut buffer)?;
     Ok(buffer)
 }
 

@@ -19,9 +19,11 @@ pub struct Certificates {
 /// **Note:** this can only be called from a Confidential VM.
 pub fn get_certs() -> Result<Certificates, HttpError> {
     let res: Certificates = ureq::get(IMDS_CERT_URL)
-        .set("Metadata", "true")
+        .header("Metadata", "true")
         .call()
         .map_err(Box::new)?
-        .into_json()?;
+        .body_mut()
+        .read_json()
+        .map_err(Box::new)?;
     Ok(res)
 }
