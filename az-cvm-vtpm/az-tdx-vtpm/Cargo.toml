@@ -1,6 +1,6 @@
 [package]
 name = "az-tdx-vtpm"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 repository = "https://github.com/kinvolk/azure-cvm-tooling/"
 license = "MIT"
@@ -16,7 +16,7 @@ name = "tdx-vtpm"
 path = "src/main.rs"
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.8.1", default-features = false, features = ["attester"] }
+az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false, features = ["attester"] }
 base64-url = "3.0.0"
 serde.workspace = true
 serde_json.workspace = true
