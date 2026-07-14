@@ -25,7 +25,7 @@ struct ReportBody {
 
 impl From<ReportBody> for String {
     fn from(val: ReportBody) -> Self {
-        format!(r#"{{"report":"{}"}}"#, val.report)
+        serde_json::json!({ "report": val.report }).to_string()
     }
 }
 
