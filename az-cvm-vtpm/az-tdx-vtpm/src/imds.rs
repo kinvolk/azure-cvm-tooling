@@ -2,7 +2,8 @@
 // Licensed under the MIT License.
 
 use az_cvm_vtpm::tdx::TdReport;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::convert::From;
 use thiserror::Error;
 use zerocopy::IntoBytes;
 
@@ -18,9 +19,14 @@ pub enum ImdsError {
     IoError(#[from] std::io::Error),
 }
 
-#[derive(Serialize)]
 struct ReportBody {
     report: String,
+}
+
+impl From<ReportBody> for String {
+    fn from(val: ReportBody) -> Self {
+        serde_json::json!({ "report": val.report }).to_string()
+    }
 }
 
 impl ReportBody {
@@ -40,12 +46,16 @@ struct QuoteResponse {
 pub fn get_td_quote(td_report: &TdReport) -> Result<Vec<u8>, ImdsError> {
     let bytes = td_report.as_bytes();
     let report_body = ReportBody::new(bytes);
-    let response: QuoteResponse = ureq::post(IMDS_QUOTE_URL)
-        .send_json(&report_body)
-        .map_err(Box::new)?
-        .body_mut()
-        .read_json()
+    let raw_body: String = report_body.into();
+    let mut response = ureq::post(IMDS_QUOTE_URL)
+        .header("Metadata", "true")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .send(raw_body)
         .map_err(Box::new)?;
+
+    let response: QuoteResponse = response.body_mut().read_json().map_err(Box::new)?;
     let quote = base64_url::decode(&response.quote)?;
+
     Ok(quote)
 }
