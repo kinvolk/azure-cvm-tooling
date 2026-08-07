@@ -31,11 +31,17 @@ thiserror.workspace = true
 tss-esapi = { version = "7.5.1", optional = true }
 zerocopy.workspace = true
 
+# Report parsing (hcl, tdx) and the vtpm data types are always available,
+# independent of the features below.
 [features]
+# Access to the vTPM device (quotes, reports, PCR extension, NV reads);
+# requires the native tpm2-tss C libraries.
 tpm = ["tss-esapi"]
 default = ["attester", "verifier"]
+# Produce attestation evidence on an Azure CVM.
 attester = ["tpm"]
-verifier = ["openssl", "sev/openssl", "tpm"]
+# Verify attestation evidence; pure computation, builds on any platform.
+verifier = ["openssl"]
 
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
