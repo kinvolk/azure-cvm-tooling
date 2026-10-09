@@ -17,12 +17,12 @@ jobs:
         working-directory: az-cvm-vtpm
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
 
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install -y libtss2-dev
 
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       with:
         toolchain: stable
         components: rustfmt, clippy
