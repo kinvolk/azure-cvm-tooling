@@ -1,4 +1,6 @@
-use crate::hcl::{self, HclReport};
+use crate::hcl;
+#[cfg(feature = "attester")]
+use crate::hcl::HclReport;
 use crate::tdx::TdReport;
 use crate::vtpm;
 use thiserror::Error;
@@ -21,6 +23,7 @@ pub fn parse(bytes: &[u8]) -> Result<TdReport, ReportError> {
 }
 
 /// Fetch TdReport from vTPM and parse it
+#[cfg(feature = "attester")]
 pub fn get_report() -> Result<TdReport, ReportError> {
     let bytes = vtpm::get_report()?;
     let hcl_report = HclReport::new(bytes)?;
