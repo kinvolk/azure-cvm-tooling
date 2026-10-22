@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false, features = ["attester"] }
-base64-url = "3.0.0"
+base64-url = "4.0.0"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
