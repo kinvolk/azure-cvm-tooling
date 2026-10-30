@@ -43,7 +43,7 @@ openssl = "0.10"
 serde = { version = "1.0.189", features = ["derive"] }
 serde_json = "1.0.107"
 thiserror = "2.0.3"
-sev = { version = "7", default-features = false, features = ["snp"] }
+sev = { version = "8", default-features = false, features = ["snp"] }
 ureq = { version = "3.2.0", default-features = false, features = ["json"] }
 zerocopy = { version = "0.8.26", features = ["derive"] }
 hex = "0.4"
