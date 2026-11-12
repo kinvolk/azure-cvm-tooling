@@ -17,7 +17,7 @@ path = "src/main.rs"
 required-features = ["attester", "verifier"]
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false, features = ["attester"] }
+az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false }
 clap.workspace = true
 openssl = { workspace = true, optional = true }
 serde.workspace = true
@@ -31,6 +31,6 @@ hex.workspace = true
 
 [features]
 default = ["attester", "verifier"]
-attester = []
-verifier = ["az-cvm-vtpm/verifier", "openssl", "ureq/native-tls", "ureq/json"]
+attester = ["az-cvm-vtpm/attester"]
+verifier = ["az-cvm-vtpm/verifier", "openssl", "sev/openssl", "ureq/native-tls", "ureq/json"]
 integration_test = []

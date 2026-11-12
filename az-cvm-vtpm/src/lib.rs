@@ -3,5 +3,4 @@
 
 pub mod hcl;
 pub mod tdx;
-#[cfg(feature = "tpm")]
 pub mod vtpm;

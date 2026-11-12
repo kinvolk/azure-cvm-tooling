@@ -3,7 +3,9 @@
 
 #[cfg(feature = "verifier")]
 use super::certs::Vcek;
-use az_cvm_vtpm::hcl::{self, HclReport};
+use az_cvm_vtpm::hcl;
+#[cfg(feature = "attester")]
+use az_cvm_vtpm::hcl::HclReport;
 use az_cvm_vtpm::vtpm;
 #[cfg(feature = "verifier")]
 use openssl::{ecdsa::EcdsaSig, sha::Sha384};
@@ -82,6 +84,7 @@ fn get_report_base(report: &AttestationReport) -> Result<Vec<u8>, ValidateError>
 }
 
 /// Fetch TdReport from vTPM and parse it
+#[cfg(feature = "attester")]
 pub fn get_report() -> Result<AttestationReport, ReportError> {
     let bytes = vtpm::get_report()?;
     let hcl_report = HclReport::new(bytes)?;

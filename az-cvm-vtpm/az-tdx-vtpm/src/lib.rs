@@ -49,6 +49,7 @@ pub use az_cvm_vtpm::{hcl, tdx, vtpm};
 /// Determines if the current VM is a TDX CVM.
 /// Returns `Ok(true)` if the VM is a TDX CVM, `Ok(false)` if it is not,
 /// and `Err` if an error occurs.
+#[cfg(feature = "attester")]
 pub fn is_tdx_cvm() -> Result<bool, vtpm::ReportError> {
     let bytes = vtpm::get_report()?;
     let Ok(hcl_report) = hcl::HclReport::new(bytes) else {

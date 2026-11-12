@@ -48,6 +48,7 @@ pub enum HttpError {
 /// Determines if the current VM is an SEV-SNP CVM.
 /// Returns `Ok(true)` if the VM is an SEV-SNP CVM, `Ok(false)` if it is not,
 /// and `Err` if an error occurs.
+#[cfg(feature = "attester")]
 pub fn is_snp_cvm() -> Result<bool, vtpm::ReportError> {
     let bytes = vtpm::get_report()?;
     let Ok(hcl_report) = hcl::HclReport::new(bytes) else {

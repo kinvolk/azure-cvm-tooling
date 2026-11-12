@@ -48,3 +48,36 @@ jobs:
 
     - name: Lint
       run: cargo clippy --all-targets --all-features --all -- -D warnings
+
+  # Runs without libtss2-dev installed, proving that quote verification
+  # builds and passes its tests without the native TPM stack.
+  # TODO: sev verification still won't run on macos because it depends on sev/openssl, 
+  # whose rdrand dependency is x86_64-only. Migrate az-snp-vtpm report validation from 
+  # openssl EcdsaSig to sev/crypto_nossl (pure-Rust p384), then run this step on macOS too.
+  portable-verifier:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: az-cvm-vtpm
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Test az-cvm-vtpm verifier
+      run: cargo test --no-default-features --features=verifier
+
+    - name: Check az-tdx-vtpm verifier
+      run: cargo check -p az-tdx-vtpm --no-default-features --features=verifier
+
+    # ubuntu-only until the sev/crypto_nossl migration (see job TODO above)
+    - name: Check az-snp-vtpm verifier
+      if: matrix.os == 'ubuntu-latest'
+      run: cargo check -p az-snp-vtpm --no-default-features --features=verifier

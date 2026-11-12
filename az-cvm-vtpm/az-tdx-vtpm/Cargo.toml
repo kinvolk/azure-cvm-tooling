@@ -14,9 +14,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "tdx-vtpm"
 path = "src/main.rs"
+required-features = ["attester"]
 
 [dependencies]
-az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false, features = ["attester"] }
+az-cvm-vtpm = { path = "..", version = "0.8.2", default-features = false }
 base64-url = "3.0.0"
 serde.workspace = true
 serde_json.workspace = true
@@ -30,6 +31,6 @@ hex.workspace = true
 
 [features]
 default = ["attester", "verifier"]
-attester = []
+attester = ["az-cvm-vtpm/attester"]
 verifier = ["az-cvm-vtpm/verifier"]
 integration_test =[]

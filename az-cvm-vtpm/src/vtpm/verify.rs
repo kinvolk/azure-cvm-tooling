@@ -1,18 +1,17 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use super::tpms_attest::{AttestError, TpmsAttest};
 use super::{Quote, QuoteError};
 use openssl::pkey::{PKey, Public};
 use openssl::{hash::MessageDigest, sha::Sha256, sign::Verifier};
 use thiserror::Error;
-use tss_esapi::structures::{Attest, AttestInfo};
-use tss_esapi::traits::UnMarshall;
 
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum VerifyError {
-    #[error("tss error")]
-    Tss(#[from] tss_esapi::Error),
+    #[error("TPMS_ATTEST parse error")]
+    Attest(#[from] AttestError),
     #[error("openssl error")]
     OpenSsl(#[from] openssl::error::ErrorStack),
     #[error("quote is not signed by key")]
@@ -64,12 +63,8 @@ impl Quote {
     /// Verify that the TPM Quote's PCR digest matches the digest of the bundled PCR values
     ///
     pub fn verify_pcrs(&self) -> Result<(), VerifyError> {
-        let attest = Attest::unmarshall(&self.message)?;
-        let AttestInfo::Quote { info } = attest.attested() else {
-            return Err(VerifyError::Quote(QuoteError::NotAQuote));
-        };
-
-        let pcr_digest = info.pcr_digest();
+        let attest = TpmsAttest::parse(&self.message)?;
+        let pcr_digest = attest.pcr_digest();
 
         // Read hashes of all the PCRs.
         let mut hasher = Sha256::new();
@@ -205,6 +200,27 @@ mod tests {
             matches!(error, VerifyError::NonceMismatch),
             "Expected nonce verification error"
         );
+    }
+
+    /// The pure-Rust TPMS_ATTEST parser must agree with tss-esapi's
+    /// unmarshalling on a real vTPM quote.
+    #[cfg(feature = "tpm")]
+    #[test]
+    fn test_tpms_attest_parser_matches_tss_esapi() {
+        use tss_esapi::structures::{Attest, AttestInfo};
+        use tss_esapi::traits::UnMarshall;
+
+        let quote_bytes = include_bytes!("../../test/quote.bin");
+        let quote: Quote = deserialize_quote(quote_bytes).expect("Failed to deserialize quote");
+
+        let attest = Attest::unmarshall(&quote.message).unwrap();
+        let AttestInfo::Quote { info } = attest.attested() else {
+            panic!("fixture attestation is not a quote");
+        };
+
+        let parsed = TpmsAttest::parse(&quote.message).unwrap();
+        assert_eq!(parsed.extra_data(), attest.extra_data().as_slice());
+        assert_eq!(parsed.pcr_digest(), info.pcr_digest().as_slice());
     }
 
     #[test]
